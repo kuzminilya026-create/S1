@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Auth API</title>
+</head>
+<body>
+    <h1>Тест API авторизации</h1>
+    
+    <h2>Регистрация</h2>
+    <form id="registerForm">
+        <input type="text" id="firstname" placeholder="Имя" value="Тест" required><br><br>
+        <input type="text" id="lastname" placeholder="Фамилия" value="Пользователь" required><br><br>
+        <input type="email" id="email" placeholder="Email" value="test@example.com" required><br><br>
+        <input type="text" id="company" placeholder="Компания" value="Тестовая компания"><br><br>
+        <input type="password" id="password" placeholder="Пароль" value="password123" required><br><br>
+        <button type="submit">Зарегистрироваться</button>
+    </form>
+    
+    <div id="result"></div>
+
+    <script>
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const data = {
+                firstname: document.getElementById('firstname').value,
+                lastname: document.getElementById('lastname').value,
+                email: document.getElementById('email').value,
+                company: document.getElementById('company').value,
+                password: document.getElementById('password').value
+            };
+            
+            try {
+                console.log('Отправляем запрос:', data);
+                
+                const response = await fetch('http://localhost:3001/api/auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                console.log('Получен ответ:', result);
+                
+                document.getElementById('result').innerHTML = 
+                    '<h3>' + (result.success ? 'Успех!' : 'Ошибка!') + '</h3>' +
+                    '<pre>' + JSON.stringify(result, null, 2) + '</pre>';
+                    
+            } catch (error) {
+                console.error('Ошибка:', error);
+                document.getElementById('result').innerHTML = 
+                    '<h3>Ошибка сети:</h3><pre>' + error.message + '</pre>';
+            }
+        });
+    </script>
+</body>
+</html>
