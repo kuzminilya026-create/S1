@@ -689,23 +689,63 @@ app.get('/api/works', async (req, res) => {
   }
 });
 
-// Получение материалов для конкретной работы
-app.get('/api/works/:workId/materials', async (req, res) => {
+// Получение всех материалов
+app.get('/api/materials', async (req, res) => {
   try {
-    const { workId } = req.params;
-    const result = await query(`
-      SELECT 
-        m.*,
-        wm.consumption_per_work_unit as quantity
-      FROM materials m
-      JOIN work_materials wm ON m.id = wm.material_id
-      WHERE wm.work_id = $1
-      ORDER BY m.name
-    `, [workId]);
+    const result = await query('SELECT * FROM materials ORDER BY name');
     res.json(result.rows);
   } catch (error) {
     console.error('Ошибка получения материалов:', error);
     res.status(500).json({ error: 'Ошибка получения материалов' });
+  }
+});
+
+// Создание нового материала
+app.post('/api/materials', async (req, res) => {
+  try {
+    const { id, name, image_url, item_url, unit, unit_price, expenditure, weight } = req.body;
+    const result = await query(
+      'INSERT INTO materials (id, name, image_url, item_url, unit, unit_price, expenditure, weight) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+      [id, name, image_url, item_url, unit, unit_price, expenditure, weight]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Ошибка создания материала:', error);
+    res.status(500).json({ error: 'Ошибка создания материала' });
+  }
+});
+
+// Обновление материала
+app.put('/api/materials/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, image_url, item_url, unit, unit_price, expenditure, weight } = req.body;
+    const result = await query(
+      'UPDATE materials SET name = $1, image_url = $2, item_url = $3, unit = $4, unit_price = $5, expenditure = $6, weight = $7, updated_at = now() WHERE id = $8 RETURNING *',
+      [name, image_url, item_url, unit, unit_price, expenditure, weight, id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Материал не найден' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Ошибка обновления материала:', error);
+    res.status(500).json({ error: 'Ошибка обновления материала' });
+  }
+});
+
+// Удаление материала
+app.delete('/api/materials/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await query('DELETE FROM materials WHERE id = $1 RETURNING *', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Материал не найден' });
+    }
+    res.json({ message: 'Материал удален' });
+  } catch (error) {
+    console.error('Ошибка удаления материала:', error);
+    res.status(500).json({ error: 'Ошибка удаления материала' });
   }
 });
 
