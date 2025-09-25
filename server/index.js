@@ -4,17 +4,18 @@ import dotenv from 'dotenv';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { query } from './database.js';
+import { config } from './config.js';
 
 dotenv.config();
 
 
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = config.port;
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'file://'],
+  origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001', 'http://127.0.0.1:3002', 'file://'],
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -25,11 +26,21 @@ app.use(express.static('.'));
 
 // Простой тест endpoint без БД
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    message: 'Backend сервер работает', 
-    timestamp: new Date().toISOString() 
+  res.json({
+    status: 'OK',
+    message: 'Backend сервер работает',
+    port: PORT,
+    timestamp: new Date().toISOString()
   });
+});
+
+app.get('/api/health/db', async (req, res) => {
+  try {
+    const result = await query('SELECT 1 as ok');
+    res.json({ db: 'up', result: result.rows[0].ok });
+  } catch (e) {
+    res.status(503).json({ db: 'down', error: e.message });
+  }
 });
 
 // Middleware для логирования всех запросов
@@ -144,7 +155,7 @@ async function initializeTables() {
 // Функция для вставки демонстрационных данных авторизации
 async function insertDemoAuthData() {
   try {
-    const salt = await bcrypt.genSalt(parseInt(process.env.BCRYPT_SALT_ROUNDS || '12'));
+  const salt = await bcrypt.genSalt(config.bcryptRounds);
     const hashedPassword = await bcrypt.hash('password123', salt);
 
     await query(`
@@ -309,7 +320,7 @@ app.post('/api/auth/register', async (req, res) => {
     }
 
     // Хеширование пароля
-    const salt = await bcrypt.genSalt(parseInt(process.env.BCRYPT_SALT_ROUNDS || '12'));
+  const salt = await bcrypt.genSalt(config.bcryptRounds);
     const passwordHash = await bcrypt.hash(password, salt);
 
     // Создание пользователя
@@ -329,7 +340,7 @@ app.post('/api/auth/register', async (req, res) => {
         firstname: newUser.firstname,
         lastname: newUser.lastname 
       },
-      process.env.JWT_SECRET,
+  config.jwtSecret,
       { expiresIn: '24h' }
     );
 
@@ -427,7 +438,7 @@ app.post('/api/auth/login', async (req, res) => {
         firstname: user.firstname,
         lastname: user.lastname 
       },
-      process.env.JWT_SECRET,
+  config.jwtSecret,
       { expiresIn: '24h' }
     );
 
@@ -485,7 +496,7 @@ app.post('/api/auth/logout', async (req, res) => {
     }
 
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+  const decoded = jwt.verify(token, config.jwtSecret);
     
     // Удаление активных сессий пользователя
     await query('DELETE FROM user_sessions WHERE user_id = $1', [decoded.userId]);
@@ -516,7 +527,7 @@ app.get('/api/auth/me', async (req, res) => {
     }
 
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+  const decoded = jwt.verify(token, config.jwtSecret);
     
     // Получение актуальной информации о пользователе
     const result = await query(`
