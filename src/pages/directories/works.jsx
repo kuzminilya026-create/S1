@@ -61,7 +61,7 @@ export default function WorksPage() {
   const loadWorks = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:4025/api/works');
+      const response = await fetch('http://localhost:3001/api/works');
       if (response.ok) {
         const data = await response.json();
         setWorks(data);
@@ -78,7 +78,7 @@ export default function WorksPage() {
 
   const loadPhases = async () => {
     try {
-      const response = await fetch('http://localhost:4025/api/phases');
+      const response = await fetch('http://localhost:3001/api/phases');
       if (response.ok) {
         const data = await response.json();
         setPhases(data);
@@ -111,7 +111,7 @@ export default function WorksPage() {
 
   const handleSave = async (values) => {
     try {
-      const response = await fetch('http://localhost:4025/api/works', {
+      const response = await fetch('http://localhost:3001/api/works', {
         method: modalMode === 'create' ? 'POST' : 'PUT',
         headers: {
           'Content-Type': 'application/json',

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4025/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 // Создаем экземпляр axios с базовой конфигурацией
 const api = axios.create({
@@ -62,18 +62,47 @@ export const getOrders = async () => {
   }
 };
 
-// Получение пользователей
-export const getUsers = async () => {
+// Получение материалов
+export const getMaterials = async () => {
   try {
-    const response = await api.get('/users');
+    const response = await api.get('/materials');
     return response.data;
   } catch (error) {
-    // Возвращаем статические данные если API недоступен
-    return [
-      { id: 1, name: 'Иван Иванов', email: 'ivan@example.com', created_at: '2024-01-20' },
-      { id: 2, name: 'Мария Петрова', email: 'maria@example.com', created_at: '2024-01-19' },
-      { id: 3, name: 'Алексей Сидоров', email: 'alexey@example.com', created_at: '2024-01-18' }
-    ];
+    // Возвращаем пустой массив если API недоступен
+    return [];
+  }
+};
+
+// Создание нового материала
+export const createMaterial = async (materialData) => {
+  try {
+    const response = await api.post('/materials', materialData);
+    return response.data;
+  } catch (error) {
+    console.error('Ошибка создания материала:', error);
+    throw error;
+  }
+};
+
+// Обновление материала
+export const updateMaterial = async (id, materialData) => {
+  try {
+    const response = await api.put(`/materials/${id}`, materialData);
+    return response.data;
+  } catch (error) {
+    console.error('Ошибка обновления материала:', error);
+    throw error;
+  }
+};
+
+// Удаление материала
+export const deleteMaterial = async (id) => {
+  try {
+    const response = await api.delete(`/materials/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error('Ошибка удаления материала:', error);
+    throw error;
   }
 };
 

@@ -129,10 +129,7 @@ INSERT INTO works_ref (id, name, unit, unit_price, phase_id, stage_id, substage_
 ('w.109', 'Монтаж скрытого люка под покраску на потолок из ГКЛ с устройством портала', 'шт.', 109.00, '360', 's.6', 'ss.6.3', 109);
 
 -- Вставка примеров материалов
-INSERT INTO materials (id, name, unit, unit_price) VALUES 
-('m.1001', 'Материал для очистки потолка', 'шт.', 100.00),
-('m.1025', 'Растворитель для краски', 'л', 250.00),
-('m.682', 'Инструмент для демонтажа', 'комплект', 500.00);
+-- (Реальные данные импортируются из CSV файла BDM (1).csv через скрипт import_materials.js)
 
 -- Вставка примеров нормативов расхода
 INSERT INTO work_materials (work_id, material_id, consumption_per_work_unit, waste_coeff) VALUES 
