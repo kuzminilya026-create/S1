@@ -17,7 +17,7 @@ import {
   Col,
   Statistic
 } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, SearchOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -32,6 +32,25 @@ export default function WorksPage() {
   const [modalMode, setModalMode] = useState('create'); // 'create', 'edit', 'view'
   const [selectedWork, setSelectedWork] = useState(null);
   const [form] = Form.useForm();
+  const [searchText, setSearchText] = useState('');
+  const [filteredWorks, setFilteredWorks] = useState([]);
+
+  // Функция для поиска и фильтрации работ
+  const handleSearch = (value) => {
+    setSearchText(value);
+    const filtered = works.filter(work =>
+      work.name.toLowerCase().includes(value.toLowerCase()) ||
+      work.phase_name?.toLowerCase().includes(value.toLowerCase()) ||
+      work.stage_name?.toLowerCase().includes(value.toLowerCase()) ||
+      work.id.toString().includes(value)
+    );
+    setFilteredWorks(filtered);
+  };
+
+  // Обновляем отфильтрованные работы при изменении основного списка
+  useEffect(() => {
+    handleSearch(searchText);
+  }, [works]);
 
   // Загрузка данных
   useEffect(() => {
@@ -42,7 +61,7 @@ export default function WorksPage() {
   const loadWorks = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:3001/api/works');
+      const response = await fetch('http://localhost:4025/api/works');
       if (response.ok) {
         const data = await response.json();
         setWorks(data);
@@ -59,7 +78,7 @@ export default function WorksPage() {
 
   const loadPhases = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/phases');
+      const response = await fetch('http://localhost:4025/api/phases');
       if (response.ok) {
         const data = await response.json();
         setPhases(data);
@@ -92,7 +111,7 @@ export default function WorksPage() {
 
   const handleSave = async (values) => {
     try {
-      const response = await fetch('http://localhost:3001/api/works', {
+      const response = await fetch('http://localhost:4025/api/works', {
         method: modalMode === 'create' ? 'POST' : 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -192,11 +211,11 @@ export default function WorksPage() {
 
   // Статистика
   const stats = {
-    total: works.length,
-    phases: [...new Set(works.filter(w => w.phase_name).map(w => w.phase_name))].length,
-    avgPrice: works.length > 0 ? 
-      works.filter(w => w.unit_price).reduce((sum, w) => sum + w.unit_price, 0) / 
-      works.filter(w => w.unit_price).length : 0
+    total: filteredWorks.length,
+    phases: [...new Set(filteredWorks.filter(w => w.phase_name).map(w => w.phase_name))].length,
+    avgPrice: filteredWorks.length > 0 ? 
+      filteredWorks.filter(w => w.unit_price).reduce((sum, w) => sum + w.unit_price, 0) / 
+      filteredWorks.filter(w => w.unit_price).length : 0
   };
 
   return (
@@ -244,7 +263,7 @@ export default function WorksPage() {
       </Row>
 
       {/* Кнопки управления */}
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Space>
           <Button 
             type="primary" 
@@ -257,12 +276,22 @@ export default function WorksPage() {
             Обновить
           </Button>
         </Space>
+        
+        <Input.Search
+          placeholder="Поиск работ..."
+          allowClear
+          style={{ width: 300 }}
+          prefix={<SearchOutlined />}
+          value={searchText}
+          onChange={(e) => handleSearch(e.target.value)}
+          onSearch={handleSearch}
+        />
       </div>
 
       {/* Таблица работ */}
       <Table
         columns={columns}
-        dataSource={works}
+        dataSource={filteredWorks}
         rowKey="id"
         loading={loading}
         pagination={{

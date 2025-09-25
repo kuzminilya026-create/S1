@@ -1,6 +1,6 @@
 import MainCard from 'components/MainCard';
-import { Typography, Button, Table, Space, Popconfirm, message, Tag } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Typography, Button, Table, Space, Popconfirm, message, Tag, Input } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
 import { useState, useEffect } from 'react';
 
 // ==============================|| СПРАВОЧНИК МАТЕРИАЛОВ ||============================== //
@@ -62,6 +62,26 @@ export default function MaterialsPage() {
       supplier: 'ТеплоДом'
     }
   ]);
+  
+  const [searchText, setSearchText] = useState('');
+  const [filteredMaterials, setFilteredMaterials] = useState(materials);
+
+  // Функция для поиска и фильтрации материалов
+  const handleSearch = (value) => {
+    setSearchText(value);
+    const filtered = materials.filter(material =>
+      material.name.toLowerCase().includes(value.toLowerCase()) ||
+      material.category.toLowerCase().includes(value.toLowerCase()) ||
+      material.supplier.toLowerCase().includes(value.toLowerCase()) ||
+      material.id.toString().includes(value)
+    );
+    setFilteredMaterials(filtered);
+  };
+
+  // Обновляем отфильтрованные материалы при изменении основного списка
+  useEffect(() => {
+    handleSearch(searchText);
+  }, [materials]);
 
   const columns = [
     {
@@ -157,12 +177,12 @@ export default function MaterialsPage() {
     message.success('Материал успешно удален');
   };
 
-  const inStockCount = materials.filter(m => m.inStock).length;
-  const outOfStockCount = materials.filter(m => !m.inStock).length;
+  const inStockCount = filteredMaterials.filter(m => m.inStock).length;
+  const outOfStockCount = filteredMaterials.filter(m => !m.inStock).length;
 
   return (
     <MainCard title="Справочник материалов">
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Button 
           type="primary" 
           icon={<PlusOutlined />}
@@ -170,11 +190,21 @@ export default function MaterialsPage() {
         >
           Добавить материал
         </Button>
+        
+        <Input.Search
+          placeholder="Поиск материалов..."
+          allowClear
+          style={{ width: 300 }}
+          prefix={<SearchOutlined />}
+          value={searchText}
+          onChange={(e) => handleSearch(e.target.value)}
+          onSearch={handleSearch}
+        />
       </div>
       
       <Table
         columns={columns}
-        dataSource={materials}
+        dataSource={filteredMaterials}
         rowKey="id"
         pagination={{
           pageSize: 10,
