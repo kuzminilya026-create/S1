@@ -75,9 +75,7 @@ export default function AuthLogin({ isDemo = false }) {
         }}
         validationSchema={Yup.object().shape({
           email: Yup.string().email('Введите корректный email').max(255).required('Email обязателен'),
-          password: Yup.string()
-            .required('Пароль обязателен')
-            .min(6, 'Пароль должен быть минимум 6 символов')
+          password: Yup.string().required('Пароль обязателен').min(6, 'Пароль должен быть минимум 6 символов')
         })}
         onSubmit={handleSubmit}
       >
@@ -165,14 +163,7 @@ export default function AuthLogin({ isDemo = false }) {
               </Grid>
               <Grid size={12}>
                 <AnimateButton>
-                  <Button 
-                    fullWidth 
-                    size="large" 
-                    type="submit" 
-                    variant="contained" 
-                    color="primary"
-                    disabled={isSubmitting}
-                  >
+                  <Button fullWidth size="large" type="submit" variant="contained" color="primary" disabled={isSubmitting}>
                     {isSubmitting ? 'Вход...' : 'Войти'}
                   </Button>
                 </AnimateButton>

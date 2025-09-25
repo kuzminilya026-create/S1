@@ -64,11 +64,8 @@ export default function DashboardDefault() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [statsData, ordersData] = await Promise.all([
-          getStatistics(),
-          getOrders()
-        ]);
-        
+        const [statsData, ordersData] = await Promise.all([getStatistics(), getOrders()]);
+
         setStatistics(statsData);
         setOrders(ordersData);
       } catch (error) {
@@ -97,11 +94,11 @@ export default function DashboardDefault() {
       </Grid>
       {statistics.map((stat, index) => (
         <Grid key={stat.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-          <AnalyticEcommerce 
-            title={stat.metric_name} 
-            count={stat.metric_value.toLocaleString()} 
-            percentage={Number(stat.percentage)} 
-            extra={stat.extra_value?.toLocaleString()} 
+          <AnalyticEcommerce
+            title={stat.metric_name}
+            count={stat.metric_value.toLocaleString()}
+            percentage={Number(stat.percentage)}
+            extra={stat.extra_value?.toLocaleString()}
             isLoss={stat.is_loss}
             color={stat.color}
           />

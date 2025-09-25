@@ -21,6 +21,9 @@ const TestAuth = Loadable(lazy(() => import('pages/test/TestAuth')));
 const WorksPage = Loadable(lazy(() => import('pages/directories/works')));
 const MaterialsPage = Loadable(lazy(() => import('pages/directories/materials')));
 
+// render - calculations
+const EstimateCalculationPage = Loadable(lazy(() => import('pages/calculations/estimate')));
+
 // ==============================|| MAIN ROUTING ||============================== //
 
 const MainRoutes = {
@@ -74,6 +77,15 @@ const MainRoutes = {
         {
           path: 'materials',
           element: <MaterialsPage />
+        }
+      ]
+    },
+    {
+      path: 'calculations',
+      children: [
+        {
+          path: 'estimate',
+          element: <EstimateCalculationPage />
         }
       ]
     }

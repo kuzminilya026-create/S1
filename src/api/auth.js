@@ -56,7 +56,7 @@ const apiRequest = async (url, options = {}) => {
 // Регистрация пользователя
 export const registerUser = async (userData) => {
   const { firstname, lastname, email, company, password } = userData;
-  
+
   const response = await apiRequest(`${API_BASE_URL}/register`, {
     method: 'POST',
     body: JSON.stringify({
@@ -78,7 +78,7 @@ export const registerUser = async (userData) => {
 // Авторизация пользователя
 export const loginUser = async (credentials) => {
   const { email, password } = credentials;
-  
+
   const response = await apiRequest(`${API_BASE_URL}/login`, {
     method: 'POST',
     body: JSON.stringify({

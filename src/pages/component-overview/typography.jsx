@@ -119,9 +119,7 @@ export default function ComponentTypography() {
           </MainCard>
           <MainCard title="Подпись">
             <Stack sx={{ gap: 1 }}>
-              <Typography variant="caption">
-                Это пример текста подписи. Используется для пояснений и дополнительной информации.
-              </Typography>
+              <Typography variant="caption">Это пример текста подписи. Используется для пояснений и дополнительной информации.</Typography>
               <Breadcrumbs aria-label="breadcrumb">
                 <Typography variant="h6">Размер: 12px</Typography>
                 <Typography variant="h6">Вес: Обычный</Typography>

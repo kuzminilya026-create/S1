@@ -31,15 +31,11 @@ export default function DatabaseTest() {
     try {
       const result = await testConnection();
       setConnectionStatus(result);
-      
+
       // Если соединение успешно, загружаем данные
       if (result.status !== 'error') {
-        const [users, orders, stats] = await Promise.all([
-          getUsers(),
-          getOrders(),
-          getStatistics()
-        ]);
-        
+        const [users, orders, stats] = await Promise.all([getUsers(), getOrders(), getStatistics()]);
+
         setData({
           users,
           orders,
@@ -47,10 +43,10 @@ export default function DatabaseTest() {
         });
       }
     } catch (error) {
-      setConnectionStatus({ 
-        status: 'error', 
+      setConnectionStatus({
+        status: 'error',
         message: 'Ошибка подключения к серверу',
-        error: error.message 
+        error: error.message
       });
     } finally {
       setLoading(false);
@@ -75,29 +71,18 @@ export default function DatabaseTest() {
                   </Typography>
                 </Box>
               ) : connectionStatus ? (
-                <Alert 
-                  severity={connectionStatus.status === 'error' ? 'error' : 'success'}
-                  sx={{ mb: 2 }}
-                >
+                <Alert severity={connectionStatus.status === 'error' ? 'error' : 'success'} sx={{ mb: 2 }}>
                   <Typography variant="h6">
                     {connectionStatus.status === 'error' ? '❌ Ошибка подключения' : '✅ Подключение успешно'}
                   </Typography>
-                  <Typography variant="body2">
-                    {connectionStatus.message}
-                  </Typography>
+                  <Typography variant="body2">{connectionStatus.message}</Typography>
                   {connectionStatus.database_time && (
-                    <Typography variant="body2">
-                      Время сервера: {new Date(connectionStatus.database_time).toLocaleString()}
-                    </Typography>
+                    <Typography variant="body2">Время сервера: {new Date(connectionStatus.database_time).toLocaleString()}</Typography>
                   )}
                 </Alert>
               ) : null}
-              
-              <Button 
-                variant="contained" 
-                onClick={testDatabaseConnection}
-                disabled={loading}
-              >
+
+              <Button variant="contained" onClick={testDatabaseConnection} disabled={loading}>
                 Проверить подключение
               </Button>
             </Grid>
@@ -170,12 +155,16 @@ export default function DatabaseTest() {
             {connectionStatus && (
               <Grid size={12}>
                 <MainCard title="Детали подключения">
-                  <Typography variant="body2" component="pre" sx={{ 
-                    backgroundColor: 'grey.100', 
-                    p: 2, 
-                    borderRadius: 1,
-                    overflow: 'auto'
-                  }}>
+                  <Typography
+                    variant="body2"
+                    component="pre"
+                    sx={{
+                      backgroundColor: 'grey.100',
+                      p: 2,
+                      borderRadius: 1,
+                      overflow: 'auto'
+                    }}
+                  >
                     {JSON.stringify(connectionStatus, null, 2)}
                   </Typography>
                 </MainCard>

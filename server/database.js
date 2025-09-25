@@ -109,6 +109,7 @@ function createPool(overrideSsl) {
 
 let pool = createPool();
 let sslFallbackTried = false;
+let insecureFallbackTried = false;
 
 async function ensureConnection() {
   try {
@@ -121,6 +122,22 @@ async function ensureConnection() {
       sslFallbackTried = true;
       pool.end().catch(()=>{});
       pool = createPool(false);
+    } else if (!insecureFallbackTried && /self-signed certificate/i.test(err.message)) {
+      console.warn('⚠️ Обнаружен self-signed certificate — выполняем fallback c rejectUnauthorized=false');
+      insecureFallbackTried = true;
+      try { pool.end().catch(()=>{}); } catch {}
+      pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        max: parseInt(process.env.PG_POOL_MAX || '10', 10),
+        idleTimeoutMillis: parseInt(process.env.PG_IDLE_TIMEOUT || '30000', 10),
+        connectionTimeoutMillis: parseInt(process.env.PG_CONN_TIMEOUT || '10000', 10),
+        query_timeout: parseInt(process.env.PG_QUERY_TIMEOUT || '10000', 10),
+        statement_timeout: parseInt(process.env.PG_STATEMENT_TIMEOUT || '10000', 10),
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 10000,
+        ssl: { rejectUnauthorized: false }
+      });
+      pool.on('connect', () => console.log('✅ Пул пересоздан с insecure SSL (rejectUnauthorized=false)'));
     } else {
       throw err;
     }
@@ -156,6 +173,22 @@ export const query = async (text, params) => {
       sslFallbackTried = true;
       try { pool.end().catch(()=>{}); } catch {}
       pool = createPool(false);
+    } else if (!insecureFallbackTried && /self-signed certificate/i.test(error.message)) {
+      console.warn('🔁 Повторное создание пула с insecure SSL (rejectUnauthorized=false) после self-signed ошибки');
+      insecureFallbackTried = true;
+      try { pool.end().catch(()=>{}); } catch {}
+      pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        max: parseInt(process.env.PG_POOL_MAX || '10', 10),
+        idleTimeoutMillis: parseInt(process.env.PG_IDLE_TIMEOUT || '30000', 10),
+        connectionTimeoutMillis: parseInt(process.env.PG_CONN_TIMEOUT || '10000', 10),
+        query_timeout: parseInt(process.env.PG_QUERY_TIMEOUT || '10000', 10),
+        statement_timeout: parseInt(process.env.PG_STATEMENT_TIMEOUT || '10000', 10),
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 10000,
+        ssl: { rejectUnauthorized: false }
+      });
+      pool.on('connect', () => console.log('✅ Пул пересоздан с insecure SSL (rejectUnauthorized=false)'));
     }
     throw error;
   } finally {

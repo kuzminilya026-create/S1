@@ -1,7 +1,7 @@
 import MainCard from 'components/MainCard';
-import { Typography, Button, Table, Space, Popconfirm, message, Tag, Input, Modal, Form, InputNumber, Select } from 'antd';
+import { Typography, Button, Table, Space, Popconfirm, message, Input, Modal, Form, InputNumber, Select } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getMaterials, createMaterial, updateMaterial, deleteMaterial } from '../../api/database';
 
 // ==============================|| СПРАВОЧНИК МАТЕРИАЛОВ ||============================== //
@@ -21,7 +21,14 @@ export default function MaterialsPage() {
     setLoading(true);
     try {
       const data = await getMaterials();
-      setMaterials(data);
+      if (Array.isArray(data)) {
+        setMaterials(data);
+      } else if (data && Array.isArray(data.data)) {
+        setMaterials(data.data);
+      } else {
+        console.warn('⚠️ getMaterials вернул не-массив, устанавливаю []');
+        setMaterials([]);
+      }
     } catch (error) {
       console.error('Ошибка загрузки материалов:', error);
       message.error('Ошибка загрузки материалов');
@@ -31,20 +38,25 @@ export default function MaterialsPage() {
   };
 
   // Функция для поиска и фильтрации материалов
-  const handleSearch = (value) => {
-    setSearchText(value);
-    const filtered = materials.filter(material =>
-      material.name.toLowerCase().includes(value.toLowerCase()) ||
-      material.unit?.toLowerCase().includes(value.toLowerCase()) ||
-      material.id.toString().includes(value)
-    );
-    setFilteredMaterials(filtered);
-  };
+  const handleSearch = useCallback(
+    (value) => {
+      setSearchText(value);
+      const safe = Array.isArray(materials) ? materials : [];
+      const filtered = safe.filter(
+        (material) =>
+          material.name.toLowerCase().includes(value.toLowerCase()) ||
+          material.unit?.toLowerCase().includes(value.toLowerCase()) ||
+          material.id.toString().includes(value)
+      );
+      setFilteredMaterials(filtered);
+    },
+    [materials]
+  );
 
   // Обновляем отфильтрованные материалы при изменении основного списка
   useEffect(() => {
     handleSearch(searchText);
-  }, [materials]);
+  }, [materials, handleSearch, searchText]);
 
   // Загружаем материалы при монтировании компонента
   useEffect(() => {
@@ -56,40 +68,40 @@ export default function MaterialsPage() {
       title: 'ID',
       dataIndex: 'id',
       key: 'id',
-      width: 100,
+      width: 100
     },
     {
       title: 'Наименование',
       dataIndex: 'name',
       key: 'name',
-      width: 250,
+      width: 250
     },
     {
       title: 'Ед. изм.',
       dataIndex: 'unit',
       key: 'unit',
-      width: 80,
+      width: 80
     },
     {
       title: 'Цена (руб.)',
       dataIndex: 'unit_price',
       key: 'unit_price',
       width: 120,
-      render: (price) => price ? `${parseFloat(price).toFixed(2)} ₽` : '-',
+      render: (price) => (price ? `${parseFloat(price).toFixed(2)} ₽` : '-')
     },
     {
       title: 'Расход',
       dataIndex: 'expenditure',
       key: 'expenditure',
       width: 100,
-      render: (expenditure) => expenditure ? parseFloat(expenditure).toFixed(6) : '-',
+      render: (expenditure) => (expenditure ? parseFloat(expenditure).toFixed(6) : '-')
     },
     {
       title: 'Вес (кг)',
       dataIndex: 'weight',
       key: 'weight',
       width: 100,
-      render: (weight) => weight ? `${parseFloat(weight).toFixed(3)} кг` : '-',
+      render: (weight) => (weight ? `${parseFloat(weight).toFixed(3)} кг` : '-')
     },
     {
       title: 'Действия',
@@ -97,13 +109,7 @@ export default function MaterialsPage() {
       width: 120,
       render: (_, record) => (
         <Space size="small">
-          <Button
-            type="primary"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
-            title="Редактировать"
-          />
+          <Button type="primary" size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)} title="Редактировать" />
           <Popconfirm
             title="Удаление материала"
             description="Вы уверены, что хотите удалить этот материал?"
@@ -111,16 +117,11 @@ export default function MaterialsPage() {
             okText="Да"
             cancelText="Нет"
           >
-            <Button
-              danger
-              size="small"
-              icon={<DeleteOutlined />}
-              title="Удалить"
-            />
+            <Button danger size="small" icon={<DeleteOutlined />} title="Удалить" />
           </Popconfirm>
         </Space>
-      ),
-    },
+      )
+    }
   ];
 
   const handleAdd = () => {
@@ -142,7 +143,7 @@ export default function MaterialsPage() {
       await deleteMaterial(id);
       message.success('Материал успешно удален');
       loadMaterials(); // Перезагружаем список
-    } catch (error) {
+    } catch {
       message.error('Ошибка удаления материала');
     }
   };
@@ -158,25 +159,18 @@ export default function MaterialsPage() {
       }
       setModalVisible(false);
       loadMaterials(); // Перезагружаем список
-    } catch (error) {
+    } catch {
       message.error(modalMode === 'create' ? 'Ошибка создания материала' : 'Ошибка обновления материала');
     }
   };
 
-  const inStockCount = filteredMaterials.filter(m => m.inStock).length;
-  const outOfStockCount = filteredMaterials.filter(m => !m.inStock).length;
-
   return (
     <MainCard title="Справочник материалов">
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Button 
-          type="primary" 
-          icon={<PlusOutlined />}
-          onClick={handleAdd}
-        >
+        <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
           Добавить материал
         </Button>
-        
+
         <Input.Search
           placeholder="Поиск материалов..."
           allowClear
@@ -187,7 +181,7 @@ export default function MaterialsPage() {
           onSearch={handleSearch}
         />
       </div>
-      
+
       <Table
         columns={columns}
         dataSource={filteredMaterials}
@@ -197,16 +191,13 @@ export default function MaterialsPage() {
           pageSize: 10,
           showSizeChanger: true,
           showQuickJumper: true,
-          showTotal: (total, range) => 
-            `${range[0]}-${range[1]} из ${total} записей`,
+          showTotal: (total, range) => `${range[0]}-${range[1]} из ${total} записей`
         }}
         scroll={{ x: 900 }}
       />
-      
+
       <div style={{ marginTop: 16, display: 'flex', gap: '20px', color: '#666' }}>
-        <Typography.Text type="secondary">
-          Всего материалов: {materials.length}
-        </Typography.Text>
+        <Typography.Text type="secondary">Всего материалов: {materials.length}</Typography.Text>
       </div>
 
       {/* Модальное окно для создания/редактирования */}
@@ -224,46 +215,24 @@ export default function MaterialsPage() {
         ]}
         width={600}
       >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleSave}
-        >
-          <Form.Item
-            name="id"
-            label="ID материала"
-            rules={[{ required: true, message: 'Введите ID материала' }]}
-          >
+        <Form form={form} layout="vertical" onFinish={handleSave}>
+          <Form.Item name="id" label="ID материала" rules={[{ required: true, message: 'Введите ID материала' }]}>
             <Input placeholder="Например: m.1001" />
           </Form.Item>
 
-          <Form.Item
-            name="name"
-            label="Наименование материала"
-            rules={[{ required: true, message: 'Введите наименование материала' }]}
-          >
+          <Form.Item name="name" label="Наименование материала" rules={[{ required: true, message: 'Введите наименование материала' }]}>
             <Input placeholder="Наименование материала" />
           </Form.Item>
 
-          <Form.Item
-            name="image_url"
-            label="URL изображения"
-          >
+          <Form.Item name="image_url" label="URL изображения">
             <Input placeholder="https://example.com/image.jpg" />
           </Form.Item>
 
-          <Form.Item
-            name="item_url"
-            label="URL товара"
-          >
+          <Form.Item name="item_url" label="URL товара">
             <Input placeholder="https://example.com/product" />
           </Form.Item>
 
-          <Form.Item
-            name="unit"
-            label="Единица измерения"
-            rules={[{ required: true, message: 'Выберите единицу измерения' }]}
-          >
+          <Form.Item name="unit" label="Единица измерения" rules={[{ required: true, message: 'Выберите единицу измерения' }]}>
             <Select placeholder="Выберите единицу">
               <Select.Option value="шт.">шт.</Select.Option>
               <Select.Option value="кг">кг</Select.Option>
@@ -276,41 +245,16 @@ export default function MaterialsPage() {
             </Select>
           </Form.Item>
 
-          <Form.Item
-            name="unit_price"
-            label="Цена за единицу (руб.)"
-            rules={[{ required: true, message: 'Введите цену' }]}
-          >
-            <InputNumber
-              placeholder="0.00"
-              min={0}
-              precision={2}
-              style={{ width: '100%' }}
-            />
+          <Form.Item name="unit_price" label="Цена за единицу (руб.)" rules={[{ required: true, message: 'Введите цену' }]}>
+            <InputNumber placeholder="0.00" min={0} precision={2} style={{ width: '100%' }} />
           </Form.Item>
 
-          <Form.Item
-            name="expenditure"
-            label="Расход"
-          >
-            <InputNumber
-              placeholder="0.000000"
-              min={0}
-              precision={6}
-              style={{ width: '100%' }}
-            />
+          <Form.Item name="expenditure" label="Расход">
+            <InputNumber placeholder="0.000000" min={0} precision={6} style={{ width: '100%' }} />
           </Form.Item>
 
-          <Form.Item
-            name="weight"
-            label="Вес (кг)"
-          >
-            <InputNumber
-              placeholder="0.000"
-              min={0}
-              precision={3}
-              style={{ width: '100%' }}
-            />
+          <Form.Item name="weight" label="Вес (кг)">
+            <InputNumber placeholder="0.000" min={0} precision={3} style={{ width: '100%' }} />
           </Form.Item>
         </Form>
       </Modal>

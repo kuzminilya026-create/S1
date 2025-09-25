@@ -129,9 +129,29 @@ async function initializeTables() {
       );
     `);
 
+    // Создание таблицы связей работ и материалов
+    await query(`
+      CREATE TABLE IF NOT EXISTS work_materials (
+        work_id VARCHAR(50) NOT NULL,
+        material_id VARCHAR(50) NOT NULL,
+        consumption_per_work_unit DECIMAL(10,6),
+        waste_coeff DECIMAL(5,3) DEFAULT 1.000,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (work_id, material_id),
+        FOREIGN KEY (work_id) REFERENCES works_ref(id) ON DELETE CASCADE,
+        FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
+      );
+    `);
 
-
-    console.log('✅ Таблицы авторизации созданы/проверены');
+    // Создание индексов для производительности
+    await query(`
+      CREATE INDEX IF NOT EXISTS idx_auth_users_email ON auth_users(email);
+      CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
+      CREATE INDEX IF NOT EXISTS idx_user_sessions_expires ON user_sessions(expires_at);
+      CREATE INDEX IF NOT EXISTS idx_work_materials_work_id ON work_materials(work_id);
+      CREATE INDEX IF NOT EXISTS idx_work_materials_material_id ON work_materials(material_id);
+    `);
 
     // Вставка демонстрационных данных если таблицы пустые
     const userCount = await query('SELECT COUNT(*) FROM auth_users');
@@ -208,6 +228,20 @@ async function insertDemoData() {
       ('Всего пользователей', 78250, 70.5, 8900, false, 'primary'),
       ('Всего заказов', 18800, 27.4, 1943, true, 'warning'),
       ('Всего продаж', 35078, 27.4, 20395, true, 'warning');
+    `);
+
+    // Демо-данные связей работа-материал
+    await query(`
+      INSERT INTO work_materials (work_id, material_id, consumption_per_work_unit, waste_coeff) VALUES
+      ('w.1', 'm.1', 2.5, 1.05),
+      ('w.1', 'm.2', 0.8, 1.10),
+      ('w.10', 'm.3', 1.2, 1.08),
+      ('w.10', 'm.4', 0.5, 1.15),
+      ('w.100', 'm.1', 3.0, 1.05),
+      ('w.100', 'm.5', 1.5, 1.12),
+      ('w.101', 'm.2', 1.8, 1.10),
+      ('w.101', 'm.6', 0.9, 1.20)
+      ON CONFLICT (work_id, material_id) DO NOTHING;
     `);
 
     console.log('✅ Демонстрационные данные добавлены');
@@ -761,6 +795,119 @@ app.post('/api/works', async (req, res) => {
   } catch (error) {
     console.error('Ошибка создания работы:', error);
     res.status(500).json({ error: 'Ошибка создания работы' });
+  }
+});
+
+// ==============================|| WORK MATERIALS API ||============================== //
+
+// Получение материалов для работы
+app.get('/api/works/:workId/materials', async (req, res) => {
+  try {
+    const { workId } = req.params;
+    const result = await query(`
+      SELECT
+        wm.*,
+        m.name as material_name,
+        m.unit as material_unit,
+        m.unit_price as material_unit_price,
+        (wm.consumption_per_work_unit * wm.waste_coeff) as total_consumption,
+        ((wm.consumption_per_work_unit * wm.waste_coeff) * m.unit_price) as material_cost_per_work_unit
+      FROM work_materials wm
+      JOIN materials m ON wm.material_id = m.id
+      WHERE wm.work_id = $1
+      ORDER BY m.name
+    `, [workId]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Ошибка получения материалов для работы:', error);
+    res.status(500).json({ error: 'Ошибка получения материалов для работы' });
+  }
+});
+
+// Добавление материала к работе
+app.post('/api/works/:workId/materials', async (req, res) => {
+  try {
+    const { workId } = req.params;
+    const { material_id, consumption_per_work_unit, waste_coeff = 1.0 } = req.body;
+    const result = await query(`
+      INSERT INTO work_materials (work_id, material_id, consumption_per_work_unit, waste_coeff)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (work_id, material_id)
+      DO UPDATE SET
+        consumption_per_work_unit = EXCLUDED.consumption_per_work_unit,
+        waste_coeff = EXCLUDED.waste_coeff,
+        updated_at = now()
+      RETURNING *
+    `, [workId, material_id, consumption_per_work_unit, waste_coeff]);
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Ошибка добавления материала к работе:', error);
+    res.status(500).json({ error: 'Ошибка добавления материала к работе' });
+  }
+});
+
+// Обновление связи работа-материал
+app.put('/api/works/:workId/materials/:materialId', async (req, res) => {
+  try {
+    const { workId, materialId } = req.params;
+    const { consumption_per_work_unit, waste_coeff = 1.0 } = req.body;
+    const result = await query(`
+      UPDATE work_materials
+      SET consumption_per_work_unit = $1, waste_coeff = $2, updated_at = now()
+      WHERE work_id = $3 AND material_id = $4
+      RETURNING *
+    `, [consumption_per_work_unit, waste_coeff, workId, materialId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Связь работа-материал не найдена' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Ошибка обновления связи работа-материал:', error);
+    res.status(500).json({ error: 'Ошибка обновления связи работа-материал' });
+  }
+});
+
+// Удаление связи работа-материал
+app.delete('/api/works/:workId/materials/:materialId', async (req, res) => {
+  try {
+    const { workId, materialId } = req.params;
+    const result = await query(`
+      DELETE FROM work_materials
+      WHERE work_id = $1 AND material_id = $2
+      RETURNING *
+    `, [workId, materialId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Связь работа-материал не найдена' });
+    }
+    res.json({ message: 'Связь работа-материал удалена' });
+  } catch (error) {
+    console.error('Ошибка удаления связи работа-материал:', error);
+    res.status(500).json({ error: 'Ошибка удаления связи работа-материал' });
+  }
+});
+
+// Получение всех связей работа-материал
+app.get('/api/work-materials', async (req, res) => {
+  try {
+    const result = await query(`
+      SELECT
+        wm.*,
+        w.name as work_name,
+        w.unit as work_unit,
+        m.name as material_name,
+        m.unit as material_unit,
+        m.unit_price as material_unit_price,
+        (wm.consumption_per_work_unit * wm.waste_coeff) as total_consumption,
+        ((wm.consumption_per_work_unit * wm.waste_coeff) * m.unit_price) as material_cost_per_work_unit
+      FROM work_materials wm
+      JOIN works_ref w ON wm.work_id = w.id
+      JOIN materials m ON wm.material_id = m.id
+      ORDER BY w.name, m.name
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Ошибка получения связей работа-материал:', error);
+    res.status(500).json({ error: 'Ошибка получения связей работа-материал' });
   }
 });
 
