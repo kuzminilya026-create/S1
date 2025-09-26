@@ -356,25 +356,39 @@ export default function EstimateCalculationPage() {
   }, {});
 
   // Создаем плоский список для отображения в стиле Excel
-  const flatEstimateItems = estimateItems.reduce((acc, item, index) => {
+  // Каждая работа и каждый материал - отдельная строка
+  const flatEstimateItems = [];
+  let workCounter = 0;
+  let materialCounter = 0;
+  
+  estimateItems.forEach((item, index) => {
     if (item.type === 'work') {
-      // Добавляем работу
-      acc.push({
+      workCounter++;
+      materialCounter = 0; // Сбрасываем счетчик материалов для новой работы
+      
+      flatEstimateItems.push({
         ...item,
         level: 1,
-        number: acc.filter(i => i.level === 1).length + 1,
+        number: workCounter,
         isWork: true,
-        materials: []
+        isMaterial: false,
+        parentWork: null,
+        materialIndex: 0
       });
     } else if (item.work_id) {
-      // Добавляем материал к последней работе
-      const lastWorkIndex = acc.findLastIndex(i => i.isWork);
-      if (lastWorkIndex !== -1) {
-        acc[lastWorkIndex].materials.push(item);
-      }
+      materialCounter++;
+      
+      flatEstimateItems.push({
+        ...item,
+        level: 2,
+        number: workCounter,
+        isWork: false,
+        isMaterial: true,
+        parentWork: null,
+        materialIndex: materialCounter
+      });
     }
-    return acc;
-  }, []);
+  });
 
   const excelColumns = [
     {
@@ -384,7 +398,7 @@ export default function EstimateCalculationPage() {
       render: (_, record) => (
         <div style={{ textAlign: 'center' }}>
           <Text strong style={{ fontSize: '14px' }}>
-            {record.number}
+            {record.isWork ? record.number : `${record.number}.${record.materialIndex}`}
           </Text>
         </div>
       )
@@ -392,28 +406,31 @@ export default function EstimateCalculationPage() {
     {
       title: 'Наименование работ',
       key: 'name',
-      width: 350,
+      width: 400,
       render: (_, record) => (
-        <div>
-          <Text strong style={{ fontSize: '14px', lineHeight: '1.4' }}>
-            {record.name}
-          </Text>
-          {record.materials.length > 0 && (
-            <div style={{ marginTop: 8 }}>
-              {record.materials.map((material, idx) => (
-                <div key={idx} style={{ 
-                  marginBottom: 4, 
-                  padding: '4px 8px', 
-                  backgroundColor: '#f6ffed',
-                  borderRadius: '4px',
-                  border: '1px solid #d9f7be',
-                  fontSize: '12px'
-                }}>
-                  <Text style={{ fontSize: '12px' }}>{material.name}</Text>
-                </div>
-              ))}
-            </div>
-          )}
+        <div style={{ 
+          paddingLeft: record.isMaterial ? '20px' : '0px',
+          backgroundColor: record.isWork ? '#f0f8ff' : '#f6ffed',
+          padding: '8px 12px',
+          borderRadius: '4px',
+          border: record.isWork ? '1px solid #d6e4ff' : '1px solid #d9f7be'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {record.isWork ? (
+              <CalculatorOutlined style={{ color: '#1890ff', fontSize: '16px' }} />
+            ) : (
+              <FileTextOutlined style={{ color: '#52c41a', fontSize: '14px' }} />
+            )}
+            <Text 
+              strong={record.isWork} 
+              style={{ 
+                fontSize: record.isWork ? '14px' : '13px',
+                color: record.isWork ? '#1890ff' : '#52c41a'
+              }}
+            >
+              {record.name}
+            </Text>
+          </div>
         </div>
       )
     },
@@ -423,52 +440,35 @@ export default function EstimateCalculationPage() {
       width: 80,
       render: (_, record) => (
         <div style={{ textAlign: 'center' }}>
-          {record.materials.length > 0 ? (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px', justifyContent: 'center' }}>
-              {record.materials.slice(0, 3).map((material, idx) => (
-                <div key={idx} style={{
-                  width: '20px',
-                  height: '20px',
-                  backgroundColor: '#52c41a',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '10px',
-                  color: 'white'
-                }}>
-                  {idx + 1}
-                </div>
-              ))}
-              {record.materials.length > 3 && (
-                <div style={{
-                  width: '20px',
-                  height: '20px',
-                  backgroundColor: '#1890ff',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '10px',
-                  color: 'white'
-                }}>
-                  +
-                </div>
-              )}
-            </div>
-          ) : (
+          {record.isMaterial ? (
             <div style={{
-              width: '20px',
-              height: '20px',
-              backgroundColor: '#f0f0f0',
+              width: '30px',
+              height: '30px',
+              backgroundColor: '#52c41a',
               borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '10px',
-              color: '#999'
+              fontSize: '12px',
+              color: 'white',
+              margin: '0 auto'
             }}>
-              -
+              📦
+            </div>
+          ) : (
+            <div style={{
+              width: '30px',
+              height: '30px',
+              backgroundColor: '#1890ff',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px',
+              color: 'white',
+              margin: '0 auto'
+            }}>
+              🔨
             </div>
           )}
         </div>
@@ -480,7 +480,10 @@ export default function EstimateCalculationPage() {
       width: 80,
       render: (_, record) => (
         <div style={{ textAlign: 'center' }}>
-          <Tag color="default" style={{ fontSize: '12px' }}>
+          <Tag 
+            color={record.isWork ? 'blue' : 'green'} 
+            style={{ fontSize: '12px' }}
+          >
             {record.unit}
           </Tag>
         </div>
@@ -492,7 +495,10 @@ export default function EstimateCalculationPage() {
       width: 80,
       render: (_, record) => (
         <div style={{ textAlign: 'center' }}>
-          <Text strong style={{ color: '#1890ff' }}>
+          <Text strong style={{ 
+            color: record.isWork ? '#1890ff' : '#52c41a',
+            fontSize: '14px'
+          }}>
             {record.quantity}
           </Text>
         </div>
@@ -504,7 +510,10 @@ export default function EstimateCalculationPage() {
       width: 100,
       render: (_, record) => (
         <div style={{ textAlign: 'right' }}>
-          <Text style={{ color: '#666' }}>
+          <Text style={{ 
+            color: record.isWork ? '#1890ff' : '#52c41a',
+            fontWeight: 'bold'
+          }}>
             {record.unit_price.toFixed(2)} ₽
           </Text>
         </div>
@@ -516,9 +525,15 @@ export default function EstimateCalculationPage() {
       width: 120,
       render: (_, record) => (
         <div style={{ textAlign: 'right' }}>
-          <Text strong style={{ color: '#52c41a', fontSize: '14px' }}>
-            {record.materials.reduce((sum, mat) => sum + (mat.total || 0), 0).toFixed(2)} ₽
-          </Text>
+          {record.isMaterial ? (
+            <Text strong style={{ color: '#52c41a', fontSize: '14px' }}>
+              {record.total.toFixed(2)} ₽
+            </Text>
+          ) : (
+            <Text style={{ color: '#999', fontSize: '12px' }}>
+              -
+            </Text>
+          )}
         </div>
       )
     },
@@ -528,9 +543,15 @@ export default function EstimateCalculationPage() {
       width: 120,
       render: (_, record) => (
         <div style={{ textAlign: 'right' }}>
-          <Text strong style={{ color: '#1890ff', fontSize: '14px' }}>
-            {record.total.toFixed(2)} ₽
-          </Text>
+          {record.isWork ? (
+            <Text strong style={{ color: '#1890ff', fontSize: '14px' }}>
+              {record.total.toFixed(2)} ₽
+            </Text>
+          ) : (
+            <Text style={{ color: '#999', fontSize: '12px' }}>
+              -
+            </Text>
+          )}
         </div>
       )
     },
@@ -540,31 +561,39 @@ export default function EstimateCalculationPage() {
       width: 100,
       render: (_, record, index) => (
         <Space size="small" direction="vertical">
-          <Button 
-            type="primary" 
-            size="small" 
-            icon={<EditOutlined />} 
-            onClick={() => handleEditBlock(record)}
-            block
-          >
-            Редактировать
-          </Button>
-          <Popconfirm
-            title="Удалить блок?"
-            description="Удалить работу и все связанные материалы?"
-            onConfirm={() => handleDeleteBlock(index)}
-            okText="Да"
-            cancelText="Нет"
-          >
-            <Button 
-              danger 
-              size="small" 
-              icon={<DeleteOutlined />}
-              block
-            >
-              Удалить
-            </Button>
-          </Popconfirm>
+          {record.isWork ? (
+            <>
+              <Button 
+                type="primary" 
+                size="small" 
+                icon={<EditOutlined />} 
+                onClick={() => handleEditBlock(record)}
+                block
+              >
+                Редактировать
+              </Button>
+              <Popconfirm
+                title="Удалить блок?"
+                description="Удалить работу и все связанные материалы?"
+                onConfirm={() => handleDeleteBlock(index)}
+                okText="Да"
+                cancelText="Нет"
+              >
+                <Button 
+                  danger 
+                  size="small" 
+                  icon={<DeleteOutlined />}
+                  block
+                >
+                  Удалить
+                </Button>
+              </Popconfirm>
+            </>
+          ) : (
+            <Text type="secondary" style={{ fontSize: '11px', textAlign: 'center' }}>
+              Материал
+            </Text>
+          )}
         </Space>
       )
     }
