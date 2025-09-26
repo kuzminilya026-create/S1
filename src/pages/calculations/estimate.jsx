@@ -19,7 +19,8 @@ import {
   Divider,
   Tooltip,
   Popconfirm,
-  Badge
+  Badge,
+  Image
 } from 'antd';
 import { PlusOutlined, CalculatorOutlined, DeleteOutlined, EditOutlined, FileTextOutlined, DownloadOutlined, SaveOutlined } from '@ant-design/icons';
 
@@ -32,133 +33,7 @@ export default function EstimateCalculationPage() {
   const [works, setWorks] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [workMaterials, setWorkMaterials] = useState({}); // workId -> materials array
-  const [estimateItems, setEstimateItems] = useState([
-    // Статический пример блока 1: Штукатурка стен
-    {
-      type: 'work',
-      item_id: 'w.001',
-      name: 'Штукатурка стен по маякам',
-      unit: 'м²',
-      quantity: 50,
-      unit_price: 450,
-      total: 22500,
-      work_id: null
-    },
-    {
-      type: 'material',
-      item_id: 'm.001',
-      name: 'Штукатурка гипсовая Knauf Ротбанд 30 кг',
-      unit: 'упак.',
-      quantity: 8.33,
-      unit_price: 565,
-      total: 4706.45,
-      work_id: 'w.001'
-    },
-    {
-      type: 'material',
-      item_id: 'm.002',
-      name: 'Маяки штукатурные 3м',
-      unit: 'шт.',
-      quantity: 17,
-      unit_price: 45,
-      total: 765,
-      work_id: 'w.001'
-    },
-    {
-      type: 'material',
-      item_id: 'm.003',
-      name: 'Сетка штукатурная 1х1м',
-      unit: 'м²',
-      quantity: 5,
-      unit_price: 25,
-      total: 125,
-      work_id: 'w.001'
-    },
-    
-    // Статический пример блока 2: Покраска стен
-    {
-      type: 'work',
-      item_id: 'w.002',
-      name: 'Покраска стен водоэмульсионной краской',
-      unit: 'м²',
-      quantity: 45,
-      unit_price: 180,
-      total: 8100,
-      work_id: null
-    },
-    {
-      type: 'material',
-      item_id: 'm.004',
-      name: 'Краска водоэмульсионная белая 10л',
-      unit: 'банка',
-      quantity: 2,
-      unit_price: 1200,
-      total: 2400,
-      work_id: 'w.002'
-    },
-    {
-      type: 'material',
-      item_id: 'm.005',
-      name: 'Валик малярный 18см',
-      unit: 'шт.',
-      quantity: 1,
-      unit_price: 150,
-      total: 150,
-      work_id: 'w.002'
-    },
-    {
-      type: 'material',
-      item_id: 'm.006',
-      name: 'Кисть малярная 5см',
-      unit: 'шт.',
-      quantity: 2,
-      unit_price: 80,
-      total: 160,
-      work_id: 'w.002'
-    },
-    
-    // Статический пример блока 3: Укладка плитки
-    {
-      type: 'work',
-      item_id: 'w.003',
-      name: 'Укладка керамической плитки на пол',
-      unit: 'м²',
-      quantity: 12,
-      unit_price: 800,
-      total: 9600,
-      work_id: null
-    },
-    {
-      type: 'material',
-      item_id: 'm.007',
-      name: 'Плитка керамическая 30х30см',
-      unit: 'м²',
-      quantity: 13.2,
-      unit_price: 450,
-      total: 5940,
-      work_id: 'w.003'
-    },
-    {
-      type: 'material',
-      item_id: 'm.008',
-      name: 'Клей для плитки 25кг',
-      unit: 'мешок',
-      quantity: 2,
-      unit_price: 350,
-      total: 700,
-      work_id: 'w.003'
-    },
-    {
-      type: 'material',
-      item_id: 'm.009',
-      name: 'Затирка для швов 2кг',
-      unit: 'упак.',
-      quantity: 1,
-      unit_price: 180,
-      total: 180,
-      work_id: 'w.003'
-    }
-  ]);
+         const [estimateItems, setEstimateItems] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -168,6 +43,7 @@ export default function EstimateCalculationPage() {
   useEffect(() => {
     loadWorks();
     loadMaterials();
+           loadAllWorkMaterials();
   }, []);
 
   const loadWorks = async () => {
@@ -221,6 +97,76 @@ export default function EstimateCalculationPage() {
     }
     setWorkMaterials((prev) => ({ ...prev, [workId]: [] }));
     return [];
+  };
+
+         // Загрузка всех связей работа-материал из базы данных
+         const loadAllWorkMaterials = async () => {
+           setLoading(true);
+           try {
+             const response = await fetch('http://localhost:3002/api/work-materials');
+             if (response.ok) {
+               const data = await response.json();
+               if (Array.isArray(data)) {
+                 // Преобразуем данные в формат для отображения в таблице
+                 const flatItems = [];
+                 
+                 // Группируем по работам
+                 const workGroups = {};
+                 data.forEach(item => {
+                   if (!workGroups[item.work_id]) {
+                     workGroups[item.work_id] = {
+                       work: null,
+                       materials: []
+                     };
+                   }
+                   
+                   if (item.work_name) {
+                     workGroups[item.work_id].work = {
+                       type: 'work',
+                       item_id: item.work_id,
+                       name: item.work_name,
+                       unit: item.work_unit || 'шт.',
+                       quantity: 1, // По умолчанию 1 единица
+                       unit_price: parseFloat(item.work_unit_price) || 0,
+                       total: (parseFloat(item.work_unit_price) || 0) * 1,
+                       work_id: null
+                     };
+                   }
+                   
+                   if (item.material_name) {
+                     workGroups[item.work_id].materials.push({
+                       type: 'material',
+                       item_id: item.material_id,
+                       name: item.material_name,
+                       unit: item.material_unit || 'шт.',
+                       quantity: (parseFloat(item.consumption_per_work_unit) || 1) * 1, // Умножаем на количество работ
+                       unit_price: parseFloat(item.material_unit_price) || 0,
+                       total: ((parseFloat(item.consumption_per_work_unit) || 1) * 1) * (parseFloat(item.material_unit_price) || 0),
+                       work_id: item.work_id,
+                       image_url: item.material_image_url,
+                       item_url: item.material_item_url,
+                       consumption_per_work_unit: parseFloat(item.consumption_per_work_unit) || 0
+                     });
+                   }
+                 });
+                 
+                 // Преобразуем в плоский список
+                 Object.values(workGroups).forEach(group => {
+                   if (group.work) {
+                     flatItems.push(group.work);
+                     flatItems.push(...group.materials);
+                   }
+                 });
+                 
+                 setEstimateItems(flatItems);
+                 console.log(`✅ Загружено ${flatItems.length} позиций из базы данных`);
+               }
+             }
+           } catch (error) {
+             console.error('Ошибка загрузки связей работа-материал:', error);
+           } finally {
+             setLoading(false);
+           }
   };
 
   const handleAddItem = () => {
@@ -440,22 +386,34 @@ export default function EstimateCalculationPage() {
       width: 80,
       render: (_, record) => (
         <div style={{ textAlign: 'center' }}>
-          {record.isMaterial ? (
-            <div style={{
-              width: '30px',
-              height: '30px',
-              backgroundColor: '#52c41a',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '12px',
-              color: 'white',
-              margin: '0 auto'
-            }}>
-              📦
-            </div>
-          ) : (
+          {record.isMaterial && record.image_url ? (
+            <Image
+              src={record.image_url}
+              alt={record.name}
+              width={30}
+              height={30}
+              style={{
+                objectFit: 'cover',
+                borderRadius: '4px',
+                border: '1px solid #d9d9d9'
+              }}
+              fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMIAAADDCAYAAADQvc6UAAABRWlDQ1BJQ0MgUHJvZmlsZQAAKJFjYGASSSwoyGFhYGDIzSspCnJ3UoiIjFJgf8LAwSDCIMogwMCcmFxc4BgQ4ANUwgCjUcG3awyMIPqyLsis7PPOq3QdDFcvjV3jOD1boQVTPQrgSkktTgbSf4A4LbmgqISBgTEFyFYuLykAsTuAbJEioKOA7DkgdjqEvQHEToKwj4DVhAQ5A9k3gGyB5IxEoBmML4BsnSQk8XQkNtReEOBxcfXxUQg1Mjc0dyHgXNJBSWpFCYh2zi+oLMpMzyhRcASGUqqCZ16yno6CkYGRAQMDKMwhqj/fAIcloxgHQqxAjIHBEugw5sUIsSQpBobtQPdLciLEVJYzMPBHMDBsayhILEqEO4DxG0txmrERhM29nYGBddr//5/DGRjYNRkY/l7////39v///y4Dmn+LgeHANwDrkl1AuO+pmgAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAwqADAAQAAAABAAAAwwAAAAD9b/HnAAAHlklEQVR4Ae3dP3Ik1RnG4W+FgYxN"
+              placeholder={
+                <div style={{
+                  width: 30,
+                  height: 30,
+                  backgroundColor: '#f5f5f5',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#999'
+                }}>
+                  📦
+                </div>
+              }
+            />
+          ) : record.isWork ? (
             <div style={{
               width: '30px',
               height: '30px',
@@ -469,6 +427,21 @@ export default function EstimateCalculationPage() {
               margin: '0 auto'
             }}>
               🔨
+            </div>
+          ) : (
+            <div style={{
+              width: '30px',
+              height: '30px',
+              backgroundColor: '#52c41a',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px',
+              color: 'white',
+              margin: '0 auto'
+            }}>
+              📦
             </div>
           )}
         </div>
@@ -495,30 +468,30 @@ export default function EstimateCalculationPage() {
       width: 80,
       render: (_, record) => (
         <div style={{ textAlign: 'center' }}>
-          <Text strong style={{ 
+          <Text strong style={{
             color: record.isWork ? '#1890ff' : '#52c41a',
             fontSize: '14px'
           }}>
-            {record.quantity}
+            {record.quantity ? parseFloat(record.quantity).toFixed(2) : '0.00'}
           </Text>
         </div>
       )
     },
-    {
-      title: 'На единицу',
-      key: 'unit_price',
-      width: 100,
-      render: (_, record) => (
-        <div style={{ textAlign: 'right' }}>
-          <Text style={{ 
-            color: record.isWork ? '#1890ff' : '#52c41a',
-            fontWeight: 'bold'
-          }}>
-            {record.unit_price.toFixed(2)} ₽
-          </Text>
-        </div>
-      )
-    },
+           {
+             title: 'На единицу',
+             key: 'unit_price',
+             width: 100,
+             render: (_, record) => (
+               <div style={{ textAlign: 'right' }}>
+                 <Text style={{
+                   color: record.isWork ? '#1890ff' : '#52c41a',
+                   fontWeight: 'bold'
+                 }}>
+                   {record.unit_price ? parseFloat(record.unit_price).toFixed(2) : '0.00'} ₽
+                 </Text>
+               </div>
+             )
+           },
     {
       title: 'Материалы',
       key: 'materials_cost',
@@ -527,7 +500,7 @@ export default function EstimateCalculationPage() {
         <div style={{ textAlign: 'right' }}>
           {record.isMaterial ? (
             <Text strong style={{ color: '#52c41a', fontSize: '14px' }}>
-              {record.total.toFixed(2)} ₽
+              {record.total ? parseFloat(record.total).toFixed(2) : '0.00'} ₽
             </Text>
           ) : (
             <Text style={{ color: '#999', fontSize: '12px' }}>
@@ -545,7 +518,25 @@ export default function EstimateCalculationPage() {
         <div style={{ textAlign: 'right' }}>
           {record.isWork ? (
             <Text strong style={{ color: '#1890ff', fontSize: '14px' }}>
-              {record.total.toFixed(2)} ₽
+              {record.total ? parseFloat(record.total).toFixed(2) : '0.00'} ₽
+            </Text>
+          ) : (
+            <Text style={{ color: '#999', fontSize: '12px' }}>
+              -
+            </Text>
+          )}
+        </div>
+      )
+    },
+    {
+      title: 'Расход',
+      key: 'consumption',
+      width: 100,
+      render: (_, record) => (
+        <div style={{ textAlign: 'center' }}>
+          {record.isMaterial ? (
+            <Text style={{ color: '#52c41a', fontSize: '13px' }}>
+              {record.consumption_per_work_unit ? parseFloat(record.consumption_per_work_unit).toFixed(6) : '0.000000'}
             </Text>
           ) : (
             <Text style={{ color: '#999', fontSize: '12px' }}>
@@ -638,137 +629,6 @@ export default function EstimateCalculationPage() {
     message.success('Смета очищена');
   };
 
-  const handleLoadDemoData = () => {
-    // Перезагружаем статические данные
-    setEstimateItems([
-      // Статический пример блока 1: Штукатурка стен
-      {
-        type: 'work',
-        item_id: 'w.001',
-        name: 'Штукатурка стен по маякам',
-        unit: 'м²',
-        quantity: 50,
-        unit_price: 450,
-        total: 22500,
-        work_id: null
-      },
-      {
-        type: 'material',
-        item_id: 'm.001',
-        name: 'Штукатурка гипсовая Knauf Ротбанд 30 кг',
-        unit: 'упак.',
-        quantity: 8.33,
-        unit_price: 565,
-        total: 4706.45,
-        work_id: 'w.001'
-      },
-      {
-        type: 'material',
-        item_id: 'm.002',
-        name: 'Маяки штукатурные 3м',
-        unit: 'шт.',
-        quantity: 17,
-        unit_price: 45,
-        total: 765,
-        work_id: 'w.001'
-      },
-      {
-        type: 'material',
-        item_id: 'm.003',
-        name: 'Сетка штукатурная 1х1м',
-        unit: 'м²',
-        quantity: 5,
-        unit_price: 25,
-        total: 125,
-        work_id: 'w.001'
-      },
-      
-      // Статический пример блока 2: Покраска стен
-      {
-        type: 'work',
-        item_id: 'w.002',
-        name: 'Покраска стен водоэмульсионной краской',
-        unit: 'м²',
-        quantity: 45,
-        unit_price: 180,
-        total: 8100,
-        work_id: null
-      },
-      {
-        type: 'material',
-        item_id: 'm.004',
-        name: 'Краска водоэмульсионная белая 10л',
-        unit: 'банка',
-        quantity: 2,
-        unit_price: 1200,
-        total: 2400,
-        work_id: 'w.002'
-      },
-      {
-        type: 'material',
-        item_id: 'm.005',
-        name: 'Валик малярный 18см',
-        unit: 'шт.',
-        quantity: 1,
-        unit_price: 150,
-        total: 150,
-        work_id: 'w.002'
-      },
-      {
-        type: 'material',
-        item_id: 'm.006',
-        name: 'Кисть малярная 5см',
-        unit: 'шт.',
-        quantity: 2,
-        unit_price: 80,
-        total: 160,
-        work_id: 'w.002'
-      },
-      
-      // Статический пример блока 3: Укладка плитки
-      {
-        type: 'work',
-        item_id: 'w.003',
-        name: 'Укладка керамической плитки на пол',
-        unit: 'м²',
-        quantity: 12,
-        unit_price: 800,
-        total: 9600,
-        work_id: null
-      },
-      {
-        type: 'material',
-        item_id: 'm.007',
-        name: 'Плитка керамическая 30х30см',
-        unit: 'м²',
-        quantity: 13.2,
-        unit_price: 450,
-        total: 5940,
-        work_id: 'w.003'
-      },
-      {
-        type: 'material',
-        item_id: 'm.008',
-        name: 'Клей для плитки 25кг',
-        unit: 'мешок',
-        quantity: 2,
-        unit_price: 350,
-        total: 700,
-        work_id: 'w.003'
-      },
-      {
-        type: 'material',
-        item_id: 'm.009',
-        name: 'Затирка для швов 2кг',
-        unit: 'упак.',
-        quantity: 1,
-        unit_price: 180,
-        total: 180,
-        work_id: 'w.003'
-      }
-    ]);
-    message.success('Демонстрационные данные загружены');
-  };
 
   return (
     <MainCard title="Расчет сметы">
@@ -855,14 +715,14 @@ export default function EstimateCalculationPage() {
           >
             Обновить справочники
           </Button>
-          <Button
-            icon={<FileTextOutlined />}
-            onClick={handleLoadDemoData}
-            size="large"
-            type="dashed"
-          >
-            Загрузить примеры
-          </Button>
+                 <Button
+                   icon={<FileTextOutlined />}
+                   onClick={loadAllWorkMaterials}
+                   size="large"
+                   type="dashed"
+                 >
+                   Загрузить все связи
+                 </Button>
           <Button
             icon={<DownloadOutlined />}
             onClick={handleExportEstimate}
@@ -907,14 +767,8 @@ export default function EstimateCalculationPage() {
         dataSource={flatEstimateItems}
         rowKey="item_id"
         loading={loading}
-        pagination={{
-          pageSize: 20,
-          showSizeChanger: true,
-          showQuickJumper: true,
-          showTotal: (total, range) => `${range[0]}-${range[1]} из ${total} позиций`,
-          pageSizeOptions: ['10', '20', '50', '100']
-        }}
-        scroll={{ x: 1200 }}
+        pagination={false}
+        scroll={{ x: 1200, y: 600 }}
         size="middle"
         bordered={true}
         style={{ 
@@ -924,7 +778,7 @@ export default function EstimateCalculationPage() {
         }}
         summary={() => (
           <Table.Summary.Row style={{ backgroundColor: '#f8f9fa', fontWeight: 'bold' }}>
-            <Table.Summary.Cell index={0} colSpan={5}>
+            <Table.Summary.Cell index={0} colSpan={6}>
               <Text strong style={{ fontSize: '16px' }}>
                 Итого по смете:
               </Text>
@@ -940,6 +794,7 @@ export default function EstimateCalculationPage() {
               </Text>
             </Table.Summary.Cell>
             <Table.Summary.Cell index={3} />
+            <Table.Summary.Cell index={4} />
           </Table.Summary.Row>
         )}
       />

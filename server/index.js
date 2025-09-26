@@ -894,9 +894,12 @@ app.get('/api/work-materials', async (req, res) => {
         wm.*,
         w.name as work_name,
         w.unit as work_unit,
+        w.unit_price as work_unit_price,
         m.name as material_name,
         m.unit as material_unit,
         m.unit_price as material_unit_price,
+        m.image_url as material_image_url,
+        m.item_url as material_item_url,
         (wm.consumption_per_work_unit * wm.waste_coeff) as total_consumption,
         ((wm.consumption_per_work_unit * wm.waste_coeff) * m.unit_price) as material_cost_per_work_unit
       FROM work_materials wm

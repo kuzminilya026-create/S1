@@ -278,27 +278,21 @@ export default function MaterialsPage() {
         />
       </div>
 
-      <Table
-        columns={columns}
-        dataSource={filteredMaterials}
-        rowKey="id"
-        loading={loading}
-        pagination={{
-          pageSize: 20,
-          showSizeChanger: true,
-          showQuickJumper: true,
-          showTotal: (total, range) => `${range[0]}-${range[1]} из ${total} записей`,
-          pageSizeOptions: ['10', '20', '50', '100']
-        }}
-        scroll={{ x: 1200 }}
-        size="middle"
-        bordered={false}
-        style={{ 
-          backgroundColor: '#fff',
-          borderRadius: '8px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-        }}
-      />
+             <Table
+               columns={columns}
+               dataSource={filteredMaterials}
+               rowKey="id"
+               loading={loading}
+               pagination={false}
+               scroll={{ x: 1200, y: 600 }}
+               size="middle"
+               bordered={false}
+               style={{
+                 backgroundColor: '#fff',
+                 borderRadius: '8px',
+                 boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+               }}
+             />
 
       <div style={{ marginTop: 16, display: 'flex', gap: '20px', color: '#666', flexWrap: 'wrap' }}>
         <Typography.Text type="secondary">
