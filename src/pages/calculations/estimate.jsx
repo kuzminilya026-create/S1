@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import MainCard from 'components/MainCard';
 import {
   Typography,
@@ -100,83 +100,169 @@ export default function EstimateCalculationPage() {
     return [];
   };
 
-         // Загрузка всех связей работа-материал из базы данных
-         const loadAllWorkMaterials = async () => {
-           setLoading(true);
-           try {
-             const response = await fetch('http://localhost:3002/api/work-materials');
-             if (response.ok) {
-               const data = await response.json();
-               if (Array.isArray(data)) {
-                 // Преобразуем данные в формат для отображения в таблице
-                 const flatItems = [];
-                 
-                 // Группируем по работам
-                 const workGroups = {};
-                 data.forEach(item => {
-                   if (!workGroups[item.work_id]) {
-                     workGroups[item.work_id] = {
-                       work: null,
-                       materials: []
-                     };
-                   }
-                   
-                   if (item.work_name) {
-                     workGroups[item.work_id].work = {
-                       type: 'work',
-                       item_id: item.work_id,
-                       name: item.work_name,
-                       unit: item.work_unit || 'шт.',
-                       quantity: 1, // По умолчанию 1 единица
-                       unit_price: parseFloat(item.work_unit_price) || 0,
-                       total: (parseFloat(item.work_unit_price) || 0) * 1,
-                       work_id: null
-                     };
-                   }
-                   
-                   if (item.material_name) {
-                     workGroups[item.work_id].materials.push({
-                       type: 'material',
-                       item_id: item.material_id,
-                       name: item.material_name,
-                       unit: item.material_unit || 'шт.',
-                       quantity: (parseFloat(item.consumption_per_work_unit) || 1) * 1, // Умножаем на количество работ
-                       unit_price: parseFloat(item.material_unit_price) || 0,
-                       total: ((parseFloat(item.consumption_per_work_unit) || 1) * 1) * (parseFloat(item.material_unit_price) || 0),
-                       work_id: item.work_id,
-                       image_url: item.material_image_url,
-                       item_url: item.material_item_url,
-                       consumption_per_work_unit: parseFloat(item.consumption_per_work_unit) || 0
-                     });
-                   }
-                 });
-                 
-                 // Преобразуем в плоский список, сортируя по ID работ
-                 Object.values(workGroups)
-                   .sort((a, b) => {
-                     // Извлекаем числовую часть из ID (w.1 -> 1, w.2 -> 2, etc.)
-                     const getWorkNumber = (workId) => {
-                       const match = workId?.match(/w\.(\d+)/);
-                       return match ? parseInt(match[1], 10) : 0;
-                     };
-                     return getWorkNumber(a.work?.item_id) - getWorkNumber(b.work?.item_id);
-                   })
-                   .forEach(group => {
-                     if (group.work) {
-                       flatItems.push(group.work);
-                       flatItems.push(...group.materials);
-                     }
-                   });
-                 
-                 setEstimateItems(flatItems);
-                 console.log(`✅ Загружено ${flatItems.length} позиций из базы данных`);
-               }
-             }
-           } catch (error) {
-             console.error('Ошибка загрузки связей работа-материал:', error);
-           } finally {
-             setLoading(false);
-           }
+  // Оптимизированная загрузка всех данных сметы одним запросом
+  const loadOptimizedEstimateData = async () => {
+    setLoading(true);
+    try {
+      console.log('🚀 Загрузка оптимизированных данных сметы...');
+      const startTime = Date.now();
+      
+      const response = await fetch('http://localhost:3002/api/estimate-data');
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && Array.isArray(result.data)) {
+          const endTime = Date.now();
+          console.log(`✅ Оптимизированная загрузка завершена за ${endTime - startTime}ms`);
+          console.log(`📊 Получено ${result.data.length} записей за ${result.meta.duration}ms`);
+          
+          // Преобразуем данные в формат для отображения в таблице
+          const flatItems = [];
+
+          // Группируем по работам
+          const workGroups = {};
+          result.data.forEach(item => {
+            if (!workGroups[item.work_id]) {
+              workGroups[item.work_id] = {
+                work: null,
+                materials: []
+              };
+            }
+
+            if (item.work_name) {
+              workGroups[item.work_id].work = {
+                type: 'work',
+                item_id: item.work_id,
+                name: item.work_name,
+                unit: item.work_unit || 'шт.',
+                quantity: 1, // По умолчанию 1 единица
+                unit_price: parseFloat(item.work_unit_price) || 0,
+                total: (parseFloat(item.work_unit_price) || 0) * 1,
+                work_id: null
+              };
+            }
+
+            if (item.material_name) {
+              workGroups[item.work_id].materials.push({
+                type: 'material',
+                item_id: item.material_id,
+                name: item.material_name,
+                unit: item.material_unit || 'шт.',
+                quantity: (parseFloat(item.consumption_per_work_unit) || 1) * 1, // Умножаем на количество работ
+                unit_price: parseFloat(item.material_unit_price) || 0,
+                total: ((parseFloat(item.consumption_per_work_unit) || 1) * 1) * (parseFloat(item.material_unit_price) || 0),
+                work_id: item.work_id,
+                image_url: item.material_image_url,
+                item_url: item.material_item_url,
+                consumption_per_work_unit: parseFloat(item.consumption_per_work_unit) || 0
+              });
+            }
+          });
+
+          // Преобразуем в плоский список, сортируя по ID работ
+          Object.values(workGroups)
+            .sort((a, b) => {
+              // Извлекаем числовую часть из ID (w.1 -> 1, w.2 -> 2, etc.)
+              const getWorkNumber = (workId) => {
+                const match = workId?.match(/w\.(\d+)/);
+                return match ? parseInt(match[1], 10) : 0;
+              };
+              return getWorkNumber(a.work?.item_id) - getWorkNumber(b.work?.item_id);
+            })
+            .forEach(group => {
+              if (group.work) {
+                flatItems.push(group.work);
+                flatItems.push(...group.materials);
+              }
+            });
+
+          setEstimateItems(flatItems);
+          console.log(`✅ Загружено ${flatItems.length} позиций из базы данных (оптимизированно)`);
+        }
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки оптимизированных данных сметы:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Загрузка всех связей работа-материал из базы данных (старый метод)
+  const loadAllWorkMaterials = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('http://localhost:3002/api/work-materials');
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          // Преобразуем данные в формат для отображения в таблице
+          const flatItems = [];
+
+          // Группируем по работам
+          const workGroups = {};
+          data.forEach(item => {
+            if (!workGroups[item.work_id]) {
+              workGroups[item.work_id] = {
+                work: null,
+                materials: []
+              };
+            }
+
+            if (item.work_name) {
+              workGroups[item.work_id].work = {
+                type: 'work',
+                item_id: item.work_id,
+                name: item.work_name,
+                unit: item.work_unit || 'шт.',
+                quantity: 1, // По умолчанию 1 единица
+                unit_price: parseFloat(item.work_unit_price) || 0,
+                total: (parseFloat(item.work_unit_price) || 0) * 1,
+                work_id: null
+              };
+            }
+
+            if (item.material_name) {
+              workGroups[item.work_id].materials.push({
+                type: 'material',
+                item_id: item.material_id,
+                name: item.material_name,
+                unit: item.material_unit || 'шт.',
+                quantity: (parseFloat(item.consumption_per_work_unit) || 1) * 1, // Умножаем на количество работ
+                unit_price: parseFloat(item.material_unit_price) || 0,
+                total: ((parseFloat(item.consumption_per_work_unit) || 1) * 1) * (parseFloat(item.material_unit_price) || 0),
+                work_id: item.work_id,
+                image_url: item.material_image_url,
+                item_url: item.material_item_url,
+                consumption_per_work_unit: parseFloat(item.consumption_per_work_unit) || 0
+              });
+            }
+          });
+
+          // Преобразуем в плоский список, сортируя по ID работ
+          Object.values(workGroups)
+            .sort((a, b) => {
+              // Извлекаем числовую часть из ID (w.1 -> 1, w.2 -> 2, etc.)
+              const getWorkNumber = (workId) => {
+                const match = workId?.match(/w\.(\d+)/);
+                return match ? parseInt(match[1], 10) : 0;
+              };
+              return getWorkNumber(a.work?.item_id) - getWorkNumber(b.work?.item_id);
+            })
+            .forEach(group => {
+              if (group.work) {
+                flatItems.push(group.work);
+                flatItems.push(...group.materials);
+              }
+            });
+
+          setEstimateItems(flatItems);
+          console.log(`✅ Загружено ${flatItems.length} позиций из базы данных`);
+        }
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки связей работа-материал:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAddItem = () => {
@@ -285,59 +371,65 @@ export default function EstimateCalculationPage() {
     return quantity * unitPrice;
   };
 
-  const getTotalEstimate = () => {
+  // Мемоизированная функция для расчета общей суммы
+  const getTotalEstimate = useCallback(() => {
     return estimateItems.reduce((sum, item) => sum + (item.total || 0), 0);
-  };
+  }, [estimateItems]);
 
-  // Группируем позиции по блокам (работа + материалы)
-  const groupedItems = estimateItems.reduce((groups, item, index) => {
-    if (item.type === 'work') {
-      // Создаем новый блок для работы
-      const blockId = `block_${item.item_id}_${index}`;
-      groups[blockId] = {
-        work: item,
-        materials: [],
-        blockId,
-        totalCost: item.total || 0
-      };
-    } else if (item.work_id) {
-      // Добавляем материал к последнему блоку работы
-      const lastBlock = Object.values(groups).pop();
-      if (lastBlock) {
-        lastBlock.materials.push(item);
-        lastBlock.totalCost += item.total || 0;
+  // Мемоизированная группировка позиций по блокам (работа + материалы)
+  const groupedItems = useMemo(() => {
+    return estimateItems.reduce((groups, item, index) => {
+      if (item.type === 'work') {
+        // Создаем новый блок для работы
+        const blockId = `block_${item.item_id}_${index}`;
+        groups[blockId] = {
+          work: item,
+          materials: [],
+          blockId,
+          totalCost: item.total || 0
+        };
+      } else if (item.work_id) {
+        // Добавляем материал к последнему блоку работы
+        const lastBlock = Object.values(groups).pop();
+        if (lastBlock) {
+          lastBlock.materials.push(item);
+          lastBlock.totalCost += item.total || 0;
+        }
       }
-    }
-    return groups;
-  }, {});
+      return groups;
+    }, {});
+  }, [estimateItems]);
 
-         // Создаем плоский список для отображения в стиле Excel
-         // Каждая работа и каждый материал - отдельная строка
-         const flatEstimateItems = [];
-
-         estimateItems.forEach((item, index) => {
-           if (item.type === 'work') {
-             flatEstimateItems.push({
-               ...item,
-               level: 1,
-               isWork: true,
-               isMaterial: false,
-               parentWork: null,
-               expanded: expandedWorks.has(item.item_id)
-             });
-           } else if (item.work_id) {
-             // Показываем материал только если работа развернута
-             if (expandedWorks.has(item.work_id)) {
-               flatEstimateItems.push({
-                 ...item,
-                 level: 2,
-                 isWork: false,
-                 isMaterial: true,
-                 parentWork: null
-               });
-             }
-           }
-         });
+  // Мемоизированное создание плоского списка для отображения в стиле Excel
+  const flatEstimateItems = useMemo(() => {
+    const items = [];
+    
+    estimateItems.forEach((item, index) => {
+      if (item.type === 'work') {
+        items.push({
+          ...item,
+          level: 1,
+          isWork: true,
+          isMaterial: false,
+          parentWork: null,
+          expanded: expandedWorks.has(item.item_id)
+        });
+      } else if (item.work_id) {
+        // Показываем материал только если работа развернута
+        if (expandedWorks.has(item.work_id)) {
+          items.push({
+            ...item,
+            level: 2,
+            isWork: false,
+            isMaterial: true,
+            parentWork: null
+          });
+        }
+      }
+    });
+    
+    return items;
+  }, [estimateItems, expandedWorks]);
 
   const excelColumns = [
     {
@@ -612,20 +704,21 @@ export default function EstimateCalculationPage() {
     }
   ];
 
-  // Статистика сметы
-  const blockList = Object.values(groupedItems);
-  const stats = {
-    totalBlocks: blockList.length,
-    totalWorks: estimateItems.filter((item) => item.type === 'work').length,
-    totalMaterials: estimateItems.filter((item) => item.type === 'material').length,
-    totalAmount: getTotalEstimate(),
-    worksAmount: estimateItems
-      .filter((item) => item.type === 'work')
-      .reduce((sum, item) => sum + (item.total || 0), 0),
-    materialsAmount: estimateItems
-      .filter((item) => item.type === 'material')
-      .reduce((sum, item) => sum + (item.total || 0), 0)
-  };
+  // Мемоизированная статистика сметы
+  const stats = useMemo(() => {
+    const blockList = Object.values(groupedItems);
+    const works = estimateItems.filter((item) => item.type === 'work');
+    const materials = estimateItems.filter((item) => item.type === 'material');
+    
+    return {
+      totalBlocks: blockList.length,
+      totalWorks: works.length,
+      totalMaterials: materials.length,
+      totalAmount: getTotalEstimate(),
+      worksAmount: works.reduce((sum, item) => sum + (item.total || 0), 0),
+      materialsAmount: materials.reduce((sum, item) => sum + (item.total || 0), 0)
+    };
+  }, [groupedItems, estimateItems, getTotalEstimate]);
 
   // Функции для экспорта и сохранения
   const handleExportEstimate = () => {
@@ -750,11 +843,11 @@ export default function EstimateCalculationPage() {
           </Button>
                  <Button
                    icon={<FileTextOutlined />}
-                   onClick={loadAllWorkMaterials}
+                   onClick={loadOptimizedEstimateData}
                    size="large"
                    type="dashed"
                  >
-                   Загрузить все связи
+                   Загрузить оптимизированно
                  </Button>
           <Button
             icon={<DownloadOutlined />}

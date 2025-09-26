@@ -151,6 +151,13 @@ async function initializeTables() {
       CREATE INDEX IF NOT EXISTS idx_user_sessions_expires ON user_sessions(expires_at);
       CREATE INDEX IF NOT EXISTS idx_work_materials_work_id ON work_materials(work_id);
       CREATE INDEX IF NOT EXISTS idx_work_materials_material_id ON work_materials(material_id);
+      CREATE INDEX IF NOT EXISTS idx_work_materials_work_material ON work_materials(work_id, material_id);
+      CREATE INDEX IF NOT EXISTS idx_works_ref_sort_order ON works_ref(sort_order);
+      CREATE INDEX IF NOT EXISTS idx_works_ref_id ON works_ref(id);
+      CREATE INDEX IF NOT EXISTS idx_works_ref_name ON works_ref(name);
+      CREATE INDEX IF NOT EXISTS idx_materials_id ON materials(id);
+      CREATE INDEX IF NOT EXISTS idx_materials_name ON materials(name);
+      CREATE INDEX IF NOT EXISTS idx_materials_unit_price ON materials(unit_price);
     `);
 
     // Вставка демонстрационных данных если таблицы пустые
@@ -911,6 +918,96 @@ app.get('/api/work-materials', async (req, res) => {
   } catch (error) {
     console.error('Ошибка получения связей работа-материал:', error);
     res.status(500).json({ error: 'Ошибка получения связей работа-материал' });
+  }
+});
+
+// Простое кэширование для API
+const cache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 минут
+
+// Оптимизированный endpoint для загрузки всех данных сметы одним запросом
+app.get('/api/estimate-data', async (req, res) => {
+  try {
+    const cacheKey = 'estimate-data';
+    const cached = cache.get(cacheKey);
+    
+    // Проверяем кэш
+    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+      console.log('📦 Возвращаем данные из кэша');
+      return res.json({
+        success: true,
+        data: cached.data,
+        meta: {
+          ...cached.meta,
+          cached: true,
+          cacheAge: Date.now() - cached.timestamp
+        }
+      });
+    }
+    
+    console.log('🚀 Загрузка оптимизированных данных сметы...');
+    const startTime = Date.now();
+    
+    // Загружаем все данные одним запросом с оптимизированными полями
+    const result = await query(`
+      SELECT
+        -- Данные работ
+        w.id as work_id,
+        w.name as work_name,
+        w.unit as work_unit,
+        w.unit_price as work_unit_price,
+        w.sort_order as work_sort_order,
+        
+        -- Данные материалов
+        m.id as material_id,
+        m.name as material_name,
+        m.unit as material_unit,
+        m.unit_price as material_unit_price,
+        m.image_url as material_image_url,
+        m.item_url as material_item_url,
+        
+        -- Связи работа-материал
+        wm.consumption_per_work_unit,
+        wm.waste_coeff,
+        (wm.consumption_per_work_unit * wm.waste_coeff) as total_consumption,
+        ((wm.consumption_per_work_unit * wm.waste_coeff) * m.unit_price) as material_cost_per_work_unit
+      FROM work_materials wm
+      JOIN works_ref w ON wm.work_id = w.id
+      JOIN materials m ON wm.material_id = m.id
+      ORDER BY w.sort_order, w.id, m.id
+    `);
+    
+    const endTime = Date.now();
+    const duration = endTime - startTime;
+    
+    console.log(`✅ Оптимизированный запрос выполнен за ${duration}ms (${result.rows.length} записей)`);
+    
+    const responseData = {
+      success: true,
+      data: result.rows,
+      meta: {
+        count: result.rows.length,
+        duration: duration,
+        timestamp: new Date().toISOString(),
+        cached: false
+      }
+    };
+    
+    // Сохраняем в кэш
+    cache.set(cacheKey, {
+      data: result.rows,
+      meta: responseData.meta,
+      timestamp: Date.now()
+    });
+    
+    res.json(responseData);
+  } catch (error) {
+    console.error('Ошибка получения оптимизированных данных сметы:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Ошибка получения данных сметы',
+      details: error.message 
+    });
   }
 });
 
