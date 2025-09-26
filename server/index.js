@@ -905,7 +905,7 @@ app.get('/api/work-materials', async (req, res) => {
       FROM work_materials wm
       JOIN works_ref w ON wm.work_id = w.id
       JOIN materials m ON wm.material_id = m.id
-      ORDER BY w.name, m.name
+      ORDER BY w.sort_order, w.id, m.id
     `);
     res.json(result.rows);
   } catch (error) {

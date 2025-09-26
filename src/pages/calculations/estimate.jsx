@@ -151,13 +151,22 @@ export default function EstimateCalculationPage() {
                    }
                  });
                  
-                 // Преобразуем в плоский список
-                 Object.values(workGroups).forEach(group => {
-                   if (group.work) {
-                     flatItems.push(group.work);
-                     flatItems.push(...group.materials);
-                   }
-                 });
+                 // Преобразуем в плоский список, сортируя по ID работ
+                 Object.values(workGroups)
+                   .sort((a, b) => {
+                     // Извлекаем числовую часть из ID (w.1 -> 1, w.2 -> 2, etc.)
+                     const getWorkNumber = (workId) => {
+                       const match = workId?.match(/w\.(\d+)/);
+                       return match ? parseInt(match[1], 10) : 0;
+                     };
+                     return getWorkNumber(a.work?.item_id) - getWorkNumber(b.work?.item_id);
+                   })
+                   .forEach(group => {
+                     if (group.work) {
+                       flatItems.push(group.work);
+                       flatItems.push(...group.materials);
+                     }
+                   });
                  
                  setEstimateItems(flatItems);
                  console.log(`✅ Загружено ${flatItems.length} позиций из базы данных`);
