@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
+import { List } from 'react-window';
 import MainCard from 'components/MainCard';
 import {
   Typography,
@@ -26,6 +27,391 @@ import { PlusOutlined, MinusOutlined, CalculatorOutlined, DeleteOutlined, EditOu
 
 const { Title, Text } = Typography;
 const { Option } = Select;
+
+// ==============================|| ХУКИ И УТИЛИТЫ ||============================== //
+
+// Хук для debounce
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
+
+// ==============================|| МЕМОИЗИРОВАННЫЕ КОМПОНЕНТЫ ||============================== //
+
+// Виртуализированный компонент строки таблицы
+const VirtualizedTableRow = memo(({ index, style, data }) => {
+  // Дополнительная защита от undefined/null
+  if (!data || typeof data !== 'object') {
+    return null;
+  }
+
+        // Безопасная деструктуризация с fallback значениями
+        const { 
+          items = [], 
+          onEdit = () => {}, 
+          onDelete = () => {}, 
+          onToggleExpansion = () => {}, 
+          expandedWorks = new Set() 
+        } = data || {};
+  
+  // Дополнительная проверка на массив
+  if (!Array.isArray(items)) {
+    return null;
+  }
+
+        const record = items && items[index];
+
+        if (!record || typeof record !== 'object') return null;
+
+  return (
+    <div style={style}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        padding: '8px 12px',
+        borderBottom: '1px solid #f0f0f0',
+        backgroundColor: record.isWork ? '#f0f8ff' : '#f6ffed',
+        minHeight: '60px'
+      }}>
+        {/* Номер */}
+        <div style={{ width: '80px', textAlign: 'center', marginRight: '16px' }}>
+          <Text strong style={{ fontSize: '14px' }}>
+            {record.isWork ? record.item_id : record.item_id}
+          </Text>
+        </div>
+
+        {/* Наименование */}
+        <div style={{ flex: 1, marginRight: '16px' }}>
+          <div style={{
+            paddingLeft: record.isMaterial ? '20px' : '0px',
+            backgroundColor: record.isWork ? '#f0f8ff' : '#f6ffed',
+            padding: '8px 12px',
+            borderRadius: '4px',
+            border: record.isWork ? '1px solid #d6e4ff' : '1px solid #d9f7be'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {record.isWork ? (
+                <>
+                  <Button
+                    type="text"
+                    size="small"
+                        icon={expandedWorks && expandedWorks.has(record.item_id) ? <MinusOutlined /> : <PlusOutlined />}
+                    onClick={() => onToggleExpansion && onToggleExpansion(record.item_id)}
+                    style={{
+                      padding: '2px 4px',
+                      minWidth: '20px',
+                      height: '20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  />
+                  <CalculatorOutlined style={{ color: '#1890ff', fontSize: '16px' }} />
+                </>
+              ) : (
+                <FileTextOutlined style={{ color: '#52c41a', fontSize: '14px' }} />
+              )}
+              <Text
+                strong={record.isWork}
+                style={{
+                  fontSize: record.isWork ? '14px' : '13px',
+                  color: record.isWork ? '#1890ff' : '#52c41a'
+                }}
+              >
+                {record.name}
+              </Text>
+            </div>
+          </div>
+        </div>
+
+        {/* Изображение */}
+        <div style={{ width: '80px', textAlign: 'center', marginRight: '16px' }}>
+          {record.isMaterial && record.image_url ? (
+            <Image
+              src={record.image_url}
+              alt={record.name}
+              width={30}
+              height={30}
+              style={{
+                objectFit: 'cover',
+                borderRadius: '4px',
+                border: '1px solid #d9d9d9'
+              }}
+              fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMIAAADDCAYAAADQvc6UAAABRWlDQ1BJQ0MgUHJvZmlsZQAAKJFjYGASSSwoyGFhYGDIzSspCnJ3UoiIjFJgf8LAwSDCIMogwMCcmFxc4BgQ4ANUwgCjUcG3awyMIPqyLsis7PPOq3QdDFcvjV3jOD1boQVTPQrgSkktTgbSf4A4LbmgqISBgTEFyFYuLykAsTuAbJEioKOA7DkgdjqEvQHEToKwj4DVhAQ5A9k3gGyB5IxEoBmML4BsnSQk8XQkNtReEOBxcfXxUQg1Mjc0dyHgXNJBSWpFCYh2zi+oLMpMzyhRcASGUqqCZ16yno6CkYGRAQMDKMwhqj/fAIcloxgHQqxAjIHBEugw5sUIsSQpBobtQPdLciLEVJYzMPBHMDBsayhILEqEO4DxG0txmrERhM29nYGBddr//5/DGRjYNRkY/l7////39v///y4Dmn+LgeHANwDrkl1AuO+pmgAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAwqADAAQAAAABAAAAwwAAAAD9b/HnAAAHlklEQVR4Ae3dP3Ik1RnG4W+FgYxN"
+              placeholder={
+                <div style={{
+                  width: 30,
+                  height: 30,
+                  backgroundColor: '#f5f5f5',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#999'
+                }}>
+                  📦
+                </div>
+              }
+            />
+          ) : record.isWork ? (
+            <div style={{
+              width: '30px',
+              height: '30px',
+              backgroundColor: '#1890ff',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px',
+              color: 'white',
+              margin: '0 auto'
+            }}>
+              🔨
+            </div>
+          ) : (
+            <div style={{
+              width: '30px',
+              height: '30px',
+              backgroundColor: '#52c41a',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px',
+              color: 'white',
+              margin: '0 auto'
+            }}>
+              📦
+            </div>
+          )}
+        </div>
+
+        {/* Единица измерения */}
+        <div style={{ width: '80px', textAlign: 'center', marginRight: '16px' }}>
+          <Text>{record.unit}</Text>
+        </div>
+
+        {/* Количество */}
+        <div style={{ width: '100px', textAlign: 'center', marginRight: '16px' }}>
+          <Text strong>{record.quantity}</Text>
+        </div>
+
+        {/* Цена за единицу */}
+        <div style={{ width: '120px', textAlign: 'right', marginRight: '16px' }}>
+          <Text strong style={{ color: '#1890ff' }}>
+            {record.unit_price ? `${parseFloat(record.unit_price).toFixed(2)} ₽` : '-'}
+          </Text>
+        </div>
+
+        {/* Расход */}
+        <div style={{ width: '100px', textAlign: 'center', marginRight: '16px' }}>
+          <Text>{record.consumption_per_work_unit ? parseFloat(record.consumption_per_work_unit).toFixed(6) : '-'}</Text>
+        </div>
+
+        {/* Оплата труда */}
+        <div style={{ width: '120px', textAlign: 'right', marginRight: '16px' }}>
+          <Text strong style={{ color: '#52c41a' }}>
+            {record.total ? `${parseFloat(record.total).toFixed(2)} ₽` : '-'}
+          </Text>
+        </div>
+
+        {/* Действия */}
+        <div style={{ width: '140px', textAlign: 'center' }}>
+          <Space size="small" direction="vertical">
+            {record.isWork ? (
+              <>
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<EditOutlined />}
+                  onClick={() => onEdit && onEdit(record)}
+                  block
+                >
+                  Редактировать
+                </Button>
+                <Popconfirm
+                  title="Удалить блок?"
+                  description="Удалить работу и все связанные материалы?"
+                  onConfirm={() => onDelete && onDelete(index)}
+                  okText="Да"
+                  cancelText="Нет"
+                >
+                  <Button
+                    danger
+                    size="small"
+                    icon={<DeleteOutlined />}
+                    block
+                  >
+                    Удалить
+                  </Button>
+                </Popconfirm>
+              </>
+            ) : (
+              <Button
+                type="primary"
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => onEdit && onEdit(record)}
+                block
+              >
+                Редактировать
+              </Button>
+            )}
+          </Space>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// Мемоизированный компонент для изображения с lazy loading
+const MaterialImage = memo(({ imageUrl, name, isWork }) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [isInView, setIsInView] = useState(false);
+  const imgRef = useRef(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (imgRef.current) {
+      observer.observe(imgRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  if (isWork) {
+    return (
+      <div style={{
+        width: '30px',
+        height: '30px',
+        backgroundColor: '#1890ff',
+        borderRadius: '50%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: '12px',
+        color: 'white',
+        margin: '0 auto'
+      }}>
+        🔨
+      </div>
+    );
+  }
+
+  if (imageUrl && isInView) {
+    return (
+      <Image
+        ref={imgRef}
+        src={imageUrl}
+        alt={name}
+        width={30}
+        height={30}
+        style={{
+          objectFit: 'cover',
+          borderRadius: '4px',
+          border: '1px solid #d9d9d9'
+        }}
+        onLoad={() => setIsLoaded(true)}
+        fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMIAAADDCAYAAADQvc6UAAABRWlDQ1BJQ0MgUHJvZmlsZQAAKJFjYGASSSwoyGFhYGDIzSspCnJ3UoiIjFJgf8LAwSDCIMogwMCcmFxc4BgQ4ANUwgCjUcG3awyMIPqyLsis7PPOq3QdDFcvjV3jOD1boQVTPQrgSkktTgbSf4A4LbmgqISBgTEFyFYuLykAsTuAbJEioKOA7DkgdjqEvQHEToKwj4DVhAQ5A9k3gGyB5IxEoBmML4BsnSQk8XQkNtReEOBxcfXxUQg1Mjc0dyHgXNJBSWpFCYh2zi+oLMpMzyhRcASGUqqCZ16yno6CkYGRAQMDKMwhqj/fAIcloxgHQqxAjIHBEugw5sUIsSQpBobtQPdLciLEVJYzMPBHMDBsayhILEqEO4DxG0txmrERhM29nYGBddr//5/DGRjYNRkY/l7////39v///y4Dmn+LgeHANwDrkl1AuO+pmgAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAwqADAAQAAAABAAAAwwAAAAD9b/HnAAAHlklEQVR4Ae3dP3Ik1RnG4W+FgYxN"
+        placeholder={
+          <div style={{
+            width: 30,
+            height: 30,
+            backgroundColor: '#f5f5f5',
+            borderRadius: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#999'
+          }}>
+            📦
+          </div>
+        }
+      />
+    );
+  }
+
+  return (
+    <div 
+      ref={imgRef}
+      style={{
+        width: '30px',
+        height: '30px',
+        backgroundColor: '#52c41a',
+        borderRadius: '50%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: '12px',
+        color: 'white',
+        margin: '0 auto'
+      }}
+    >
+      📦
+    </div>
+  );
+});
+
+// Мемоизированный компонент для действий
+const ActionButtons = memo(({ record, onEdit, onDelete }) => {
+  if (!record.isWork) {
+    return (
+      <Text type="secondary" style={{ fontSize: '11px', textAlign: 'center' }}>
+        Материал
+      </Text>
+    );
+  }
+
+  return (
+    <Space size="small" direction="vertical">
+      <Button
+        type="primary"
+        size="small"
+        icon={<EditOutlined />}
+        onClick={() => onEdit && onEdit(record)}
+        block
+      >
+        Редактировать
+      </Button>
+      <Popconfirm
+        title="Удалить блок?"
+        description="Удалить работу и все связанные материалы?"
+        onConfirm={() => onDelete && onDelete(record)}
+        okText="Да"
+        cancelText="Нет"
+      >
+        <Button
+          danger
+          size="small"
+          icon={<DeleteOutlined />}
+          block
+        >
+          Удалить
+        </Button>
+      </Popconfirm>
+    </Space>
+  );
+});
 
 // ==============================|| РАСЧЕТ СМЕТЫ ||============================== //
 
@@ -403,9 +789,14 @@ export default function EstimateCalculationPage() {
   // Мемоизированное создание плоского списка для отображения в стиле Excel
   const flatEstimateItems = useMemo(() => {
     const items = [];
-    
+
+    // Безопасная проверка на массив
+    if (!Array.isArray(estimateItems)) {
+      return items;
+    }
+
     estimateItems.forEach((item, index) => {
-      if (item.type === 'work') {
+      if (item && item.type === 'work') {
         items.push({
           ...item,
           level: 1,
@@ -414,7 +805,7 @@ export default function EstimateCalculationPage() {
           parentWork: null,
           expanded: expandedWorks.has(item.item_id)
         });
-      } else if (item.work_id) {
+      } else if (item && item.work_id) {
         // Показываем материал только если работа развернута
         if (expandedWorks.has(item.work_id)) {
           items.push({
@@ -427,282 +818,10 @@ export default function EstimateCalculationPage() {
         }
       }
     });
-    
+
     return items;
   }, [estimateItems, expandedWorks]);
 
-  const excelColumns = [
-    {
-      title: '№',
-      key: 'number',
-      width: 80,
-      render: (_, record) => (
-        <div style={{ textAlign: 'center' }}>
-          <Text strong style={{ fontSize: '14px' }}>
-            {record.isWork ? record.item_id : record.item_id}
-          </Text>
-        </div>
-      )
-    },
-    {
-      title: 'Наименование работ',
-      key: 'name',
-      width: 400,
-      render: (_, record) => (
-        <div style={{
-          paddingLeft: record.isMaterial ? '20px' : '0px',
-          backgroundColor: record.isWork ? '#f0f8ff' : '#f6ffed',
-          padding: '8px 12px',
-          borderRadius: '4px',
-          border: record.isWork ? '1px solid #d6e4ff' : '1px solid #d9f7be'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {record.isWork ? (
-              <>
-                <Button
-                  type="text"
-                  size="small"
-                  icon={record.expanded ? <MinusOutlined /> : <PlusOutlined />}
-                  onClick={() => toggleWorkExpansion(record.item_id)}
-                  style={{ 
-                    padding: '2px 4px',
-                    minWidth: '20px',
-                    height: '20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                />
-                <CalculatorOutlined style={{ color: '#1890ff', fontSize: '16px' }} />
-              </>
-            ) : (
-              <FileTextOutlined style={{ color: '#52c41a', fontSize: '14px' }} />
-            )}
-            <Text
-              strong={record.isWork}
-              style={{
-                fontSize: record.isWork ? '14px' : '13px',
-                color: record.isWork ? '#1890ff' : '#52c41a'
-              }}
-            >
-              {record.name}
-            </Text>
-          </div>
-        </div>
-      )
-    },
-    {
-      title: 'Изображение',
-      key: 'image',
-      width: 80,
-      render: (_, record) => (
-        <div style={{ textAlign: 'center' }}>
-          {record.isMaterial && record.image_url ? (
-            <Image
-              src={record.image_url}
-              alt={record.name}
-              width={30}
-              height={30}
-              style={{
-                objectFit: 'cover',
-                borderRadius: '4px',
-                border: '1px solid #d9d9d9'
-              }}
-              fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMIAAADDCAYAAADQvc6UAAABRWlDQ1BJQ0MgUHJvZmlsZQAAKJFjYGASSSwoyGFhYGDIzSspCnJ3UoiIjFJgf8LAwSDCIMogwMCcmFxc4BgQ4ANUwgCjUcG3awyMIPqyLsis7PPOq3QdDFcvjV3jOD1boQVTPQrgSkktTgbSf4A4LbmgqISBgTEFyFYuLykAsTuAbJEioKOA7DkgdjqEvQHEToKwj4DVhAQ5A9k3gGyB5IxEoBmML4BsnSQk8XQkNtReEOBxcfXxUQg1Mjc0dyHgXNJBSWpFCYh2zi+oLMpMzyhRcASGUqqCZ16yno6CkYGRAQMDKMwhqj/fAIcloxgHQqxAjIHBEugw5sUIsSQpBobtQPdLciLEVJYzMPBHMDBsayhILEqEO4DxG0txmrERhM29nYGBddr//5/DGRjYNRkY/l7////39v///y4Dmn+LgeHANwDrkl1AuO+pmgAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAwqADAAQAAAABAAAAwwAAAAD9b/HnAAAHlklEQVR4Ae3dP3Ik1RnG4W+FgYxN"
-              placeholder={
-                <div style={{
-                  width: 30,
-                  height: 30,
-                  backgroundColor: '#f5f5f5',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#999'
-                }}>
-                  📦
-                </div>
-              }
-            />
-          ) : record.isWork ? (
-            <div style={{
-              width: '30px',
-              height: '30px',
-              backgroundColor: '#1890ff',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '12px',
-              color: 'white',
-              margin: '0 auto'
-            }}>
-              🔨
-            </div>
-          ) : (
-            <div style={{
-              width: '30px',
-              height: '30px',
-              backgroundColor: '#52c41a',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '12px',
-              color: 'white',
-              margin: '0 auto'
-            }}>
-              📦
-            </div>
-          )}
-        </div>
-      )
-    },
-    {
-      title: 'Ед.изм.',
-      key: 'unit',
-      width: 80,
-      render: (_, record) => (
-        <div style={{ textAlign: 'center' }}>
-          <Tag 
-            color={record.isWork ? 'blue' : 'green'} 
-            style={{ fontSize: '12px' }}
-          >
-            {record.unit}
-          </Tag>
-        </div>
-      )
-    },
-    {
-      title: 'Кол-во',
-      key: 'quantity',
-      width: 80,
-      render: (_, record) => (
-        <div style={{ textAlign: 'center' }}>
-          <Text strong style={{
-            color: record.isWork ? '#1890ff' : '#52c41a',
-            fontSize: '14px'
-          }}>
-            {record.quantity ? parseFloat(record.quantity).toFixed(2) : '0.00'}
-          </Text>
-        </div>
-      )
-    },
-           {
-             title: 'На единицу',
-             key: 'unit_price',
-             width: 100,
-             render: (_, record) => (
-               <div style={{ textAlign: 'right' }}>
-                 <Text style={{
-                   color: record.isWork ? '#1890ff' : '#52c41a',
-                   fontWeight: 'bold'
-                 }}>
-                   {record.unit_price ? parseFloat(record.unit_price).toFixed(2) : '0.00'} ₽
-                 </Text>
-               </div>
-             )
-           },
-    {
-      title: 'Материалы',
-      key: 'materials_cost',
-      width: 120,
-      render: (_, record) => (
-        <div style={{ textAlign: 'right' }}>
-          {record.isMaterial ? (
-            <Text strong style={{ color: '#52c41a', fontSize: '14px' }}>
-              {record.total ? parseFloat(record.total).toFixed(2) : '0.00'} ₽
-            </Text>
-          ) : (
-            <Text style={{ color: '#999', fontSize: '12px' }}>
-              -
-            </Text>
-          )}
-        </div>
-      )
-    },
-    {
-      title: 'Оплата труда',
-      key: 'work_cost',
-      width: 120,
-      render: (_, record) => (
-        <div style={{ textAlign: 'right' }}>
-          {record.isWork ? (
-            <Text strong style={{ color: '#1890ff', fontSize: '14px' }}>
-              {record.total ? parseFloat(record.total).toFixed(2) : '0.00'} ₽
-            </Text>
-          ) : (
-            <Text style={{ color: '#999', fontSize: '12px' }}>
-              -
-            </Text>
-          )}
-        </div>
-      )
-    },
-    {
-      title: 'Расход',
-      key: 'consumption',
-      width: 100,
-      render: (_, record) => (
-        <div style={{ textAlign: 'center' }}>
-          {record.isMaterial ? (
-            <Text style={{ color: '#52c41a', fontSize: '13px' }}>
-              {record.consumption_per_work_unit ? parseFloat(record.consumption_per_work_unit).toFixed(6) : '0.000000'}
-            </Text>
-          ) : (
-            <Text style={{ color: '#999', fontSize: '12px' }}>
-              -
-            </Text>
-          )}
-        </div>
-      )
-    },
-    {
-      title: 'Действия',
-      key: 'actions',
-      width: 140,
-      fixed: 'right',
-      render: (_, record, index) => (
-        <div style={{ paddingRight: '8px' }}>
-          <Space size="small" direction="vertical">
-            {record.isWork ? (
-              <>
-                <Button
-                  type="primary"
-                  size="small"
-                  icon={<EditOutlined />}
-                  onClick={() => handleEditBlock(record)}
-                  block
-                >
-                  Редактировать
-                </Button>
-                <Popconfirm
-                  title="Удалить блок?"
-                  description="Удалить работу и все связанные материалы?"
-                  onConfirm={() => handleDeleteBlock(index)}
-                  okText="Да"
-                  cancelText="Нет"
-                >
-                  <Button
-                    danger
-                    size="small"
-                    icon={<DeleteOutlined />}
-                    block
-                  >
-                    Удалить
-                  </Button>
-                </Popconfirm>
-              </>
-            ) : (
-              <Text type="secondary" style={{ fontSize: '11px', textAlign: 'center' }}>
-                Материал
-              </Text>
-            )}
-          </Space>
-        </div>
-      )
-    }
-  ];
 
   // Мемоизированная статистика сметы
   const stats = useMemo(() => {
@@ -887,43 +1006,88 @@ export default function EstimateCalculationPage() {
         </div>
       </div>
 
-      {/* Таблица сметы в стиле Excel */}
-      <Table
-        columns={excelColumns}
-        dataSource={flatEstimateItems}
-        rowKey="item_id"
-        loading={loading}
-        pagination={false}
-        scroll={{ x: 1200, y: 600 }}
-        size="middle"
-        bordered={true}
-        style={{ 
-          backgroundColor: '#fff',
-          borderRadius: '8px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-        }}
-        summary={() => (
-          <Table.Summary.Row style={{ backgroundColor: '#f8f9fa', fontWeight: 'bold' }}>
-            <Table.Summary.Cell index={0} colSpan={6}>
-              <Text strong style={{ fontSize: '16px' }}>
-                Итого по смете:
-              </Text>
-            </Table.Summary.Cell>
-            <Table.Summary.Cell index={1}>
-              <Text strong style={{ color: '#52c41a', fontSize: '16px' }}>
-                {stats.materialsAmount.toFixed(2)} ₽
-              </Text>
-            </Table.Summary.Cell>
-            <Table.Summary.Cell index={2}>
-              <Text strong style={{ color: '#1890ff', fontSize: '16px' }}>
-                {stats.worksAmount.toFixed(2)} ₽
-              </Text>
-            </Table.Summary.Cell>
-            <Table.Summary.Cell index={3} />
-            <Table.Summary.Cell index={4} />
-          </Table.Summary.Row>
+      {/* Виртуализированная таблица сметы */}
+      <div style={{ 
+        backgroundColor: '#fff',
+        borderRadius: '8px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+        border: '1px solid #d9d9d9'
+      }}>
+        {/* Заголовок таблицы */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          padding: '12px',
+          backgroundColor: '#fafafa',
+          borderBottom: '2px solid #d9d9d9',
+          fontWeight: 'bold',
+          fontSize: '14px'
+        }}>
+          <div style={{ width: '80px', textAlign: 'center', marginRight: '16px' }}>№</div>
+          <div style={{ flex: 1, marginRight: '16px' }}>Наименование работ</div>
+          <div style={{ width: '80px', textAlign: 'center', marginRight: '16px' }}>Изображение</div>
+          <div style={{ width: '80px', textAlign: 'center', marginRight: '16px' }}>Ед.изм.</div>
+          <div style={{ width: '100px', textAlign: 'center', marginRight: '16px' }}>Количество</div>
+          <div style={{ width: '120px', textAlign: 'center', marginRight: '16px' }}>Цена за единицу</div>
+          <div style={{ width: '100px', textAlign: 'center', marginRight: '16px' }}>Расход</div>
+          <div style={{ width: '120px', textAlign: 'center', marginRight: '16px' }}>Оплата труда</div>
+          <div style={{ width: '140px', textAlign: 'center' }}>Действия</div>
+        </div>
+
+        {/* Виртуализированный список */}
+        {loading ? (
+          <div style={{ padding: '40px', textAlign: 'center' }}>
+            <Text>Загрузка данных...</Text>
+          </div>
+        ) : flatEstimateItems && Array.isArray(flatEstimateItems) && flatEstimateItems.length > 0 ? (
+          <List
+            height={600}
+            itemCount={flatEstimateItems.length}
+            itemSize={60}
+            itemData={{
+              items: flatEstimateItems || [],
+              onEdit: handleEditItem || (() => {}),
+              onDelete: handleDeleteBlock || (() => {}),
+              onToggleExpansion: toggleWorkExpansion || (() => {}),
+              expandedWorks: expandedWorks || new Set()
+            }}
+          >
+            {VirtualizedTableRow}
+          </List>
+        ) : (
+          <div style={{ padding: '40px', textAlign: 'center' }}>
+            <Text>Нет данных для отображения</Text>
+          </div>
         )}
-      />
+
+        {/* Итоговая строка */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          padding: '12px',
+          backgroundColor: '#f8f9fa',
+          borderTop: '2px solid #d9d9d9',
+          fontWeight: 'bold',
+          fontSize: '16px'
+        }}>
+          <div style={{ flex: 1, marginRight: '16px' }}>
+            <Text strong style={{ fontSize: '16px' }}>
+              Итого по смете:
+            </Text>
+          </div>
+          <div style={{ width: '100px', textAlign: 'center', marginRight: '16px' }} />
+          <div style={{ width: '80px', textAlign: 'center', marginRight: '16px' }} />
+          <div style={{ width: '100px', textAlign: 'center', marginRight: '16px' }} />
+          <div style={{ width: '120px', textAlign: 'center', marginRight: '16px' }} />
+          <div style={{ width: '100px', textAlign: 'center', marginRight: '16px' }} />
+          <div style={{ width: '120px', textAlign: 'right', marginRight: '16px' }}>
+            <Text strong style={{ color: '#52c41a', fontSize: '16px' }}>
+              {stats.materialsAmount.toFixed(2)} ₽
+            </Text>
+          </div>
+          <div style={{ width: '140px', textAlign: 'center' }} />
+        </div>
+      </div>
 
       {/* Модальное окно для добавления/редактирования */}
       <Modal

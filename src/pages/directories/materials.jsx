@@ -1,10 +1,194 @@
 import MainCard from 'components/MainCard';
 import { Typography, Button, Table, Space, Popconfirm, message, Input, Modal, Form, InputNumber, Select, Card, Image, Tag, Tooltip } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, LinkOutlined, EyeOutlined } from '@ant-design/icons';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import { List } from 'react-window';
 import { getMaterials, createMaterial, updateMaterial, deleteMaterial } from '../../api/database';
 
 // ==============================|| СПРАВОЧНИК МАТЕРИАЛОВ ||============================== //
+
+// Хук для debounce
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
+
+// Виртуализированный компонент строки материала
+const VirtualizedMaterialRow = memo(({ index, style, data }) => {
+  // Дополнительная защита от undefined/null
+  if (!data || typeof data !== 'object') {
+    return null;
+  }
+
+  // Безопасная деструктуризация с fallback значениями
+  const { 
+    materials = [], 
+    onEdit = () => {}, 
+    onDelete = () => {} 
+  } = data;
+  
+  // Дополнительная проверка на массив
+  if (!Array.isArray(materials)) {
+    return null;
+  }
+
+  const material = materials[index];
+
+  if (!material) return null;
+
+  return (
+    <div style={style}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        padding: '12px',
+        borderBottom: '1px solid #f0f0f0',
+        backgroundColor: '#fff',
+        minHeight: '80px'
+      }}>
+        {/* Изображение */}
+        <div style={{ width: '60px', textAlign: 'center', marginRight: '16px' }}>
+          {material.image_url ? (
+            <Image
+              src={material.image_url}
+              alt={material.name}
+              width={40}
+              height={40}
+              style={{
+                objectFit: 'cover',
+                borderRadius: '6px',
+                border: '1px solid #f0f0f0'
+              }}
+              fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMIAAADDCAYAAADQvc6UAAABRWlDQ1BJQ0MgUHJvZmlsZQAAKJFjYGASSSwoyGFhYGDIzSspCnJ3UoiIjFJgf8LAwSDCIMogwMCcmFxc4BgQ4ANUwgCjUcG3awyMIPqyLsis7PPOq3QdDFcvjV3jOD1boQVTPQrgSkktTgbSf4A4LbmgqISBgTEFyFYuLykAsTuAbJEioKOA7DkgdjqEvQHEToKwj4DVhAQ5A9k3gGyB5IxEoBmML4BsnSQk8XQkNtReEOBxcfXxUQg1Mjc0dyHgXNJBSWpFCYh2zi+oLMpMzyhRcASGUqqCZ16yno6CkYGRAQMDKMwhqj/fAIcloxgHQqxAjIHBEugw5sUIsSQpBobtQPdLciLEVJYzMPBHMDBsayhILEqEO4DxG0txmrERhM29nYGBddr//5/DGRjYNRkY/l7////39v///y4Dmn+LgeHANwDrkl1AuO+pmgAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAwqADAAQAAAABAAAAwwAAAAD9b/HnAAAHlklEQVR4Ae3dP3Ik1RnG4W+FgYxN"
+              placeholder={
+                <div style={{
+                  width: 40,
+                  height: 40,
+                  backgroundColor: '#f5f5f5',
+                  borderRadius: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#999'
+                }}>
+                  <EyeOutlined />
+                </div>
+              }
+            />
+          ) : (
+            <div style={{
+              width: 40,
+              height: 40,
+              backgroundColor: '#f5f5f5',
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#999'
+            }}>
+              <EyeOutlined />
+            </div>
+          )}
+        </div>
+
+        {/* Материал */}
+        <div style={{ flex: 1, marginRight: '16px' }}>
+          <div style={{ marginBottom: 8 }}>
+            <Typography.Text strong style={{ fontSize: '14px', lineHeight: '1.4' }}>
+              {material.name}
+            </Typography.Text>
+          </div>
+          <div style={{ marginBottom: 8 }}>
+            <Tag color="blue" style={{ marginRight: 4 }}>
+              ID: {material.id}
+            </Tag>
+            <Tag color="green">
+              {material.unit}
+            </Tag>
+          </div>
+          {material.item_url && (
+            <div>
+              <Button
+                type="link"
+                size="small"
+                icon={<LinkOutlined />}
+                onClick={() => window.open(material.item_url, '_blank')}
+                style={{ padding: 0, height: 'auto' }}
+              >
+                Перейти к товару
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Цена */}
+        <div style={{ width: '120px', textAlign: 'right', marginRight: '16px' }}>
+          <Typography.Text strong style={{ fontSize: '16px', color: '#1890ff' }}>
+            {material.unit_price ? `${parseFloat(material.unit_price).toFixed(2)} ₽` : '-'}
+          </Typography.Text>
+        </div>
+
+        {/* Характеристики */}
+        <div style={{ width: '150px', marginRight: '16px' }}>
+          {material.expenditure && (
+            <div style={{ marginBottom: 4 }}>
+              <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
+                Расход: {parseFloat(material.expenditure).toFixed(6)}
+              </Typography.Text>
+            </div>
+          )}
+          {material.weight && (
+            <div>
+              <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
+                Вес: {parseFloat(material.weight).toFixed(3)} кг
+              </Typography.Text>
+            </div>
+          )}
+        </div>
+
+        {/* Действия */}
+        <div style={{ width: '120px', textAlign: 'center' }}>
+          <Space size="small" direction="vertical">
+            <Button
+              type="primary"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => onEdit(material)}
+              title="Редактировать"
+              block
+            />
+            <Popconfirm
+              title="Удаление материала"
+              description="Вы уверены, что хотите удалить этот материал?"
+              onConfirm={() => onDelete(material.id)}
+              okText="Да"
+              cancelText="Нет"
+            >
+              <Button
+                danger
+                size="small"
+                icon={<DeleteOutlined />}
+                title="Удалить"
+                block
+              />
+            </Popconfirm>
+          </Space>
+        </div>
+      </div>
+    </div>
+  );
+});
 
 export default function MaterialsPage() {
   const [materials, setMaterials] = useState([]);
@@ -14,7 +198,9 @@ export default function MaterialsPage() {
   const [selectedMaterial, setSelectedMaterial] = useState(null);
   const [form] = Form.useForm();
   const [searchText, setSearchText] = useState('');
-  const [filteredMaterials, setFilteredMaterials] = useState([]);
+  
+  // Debounce для поиска (300ms задержка)
+  const debouncedSearchText = useDebounce(searchText, 300);
 
   // Загрузка материалов
   const loadMaterials = async () => {
@@ -37,188 +223,35 @@ export default function MaterialsPage() {
     }
   };
 
-  // Функция для поиска и фильтрации материалов
-  const handleSearch = useCallback(
-    (value) => {
-      setSearchText(value);
-      const safe = Array.isArray(materials) ? materials : [];
-      const filtered = safe.filter(
-        (material) =>
-          material.name.toLowerCase().includes(value.toLowerCase()) ||
-          material.unit?.toLowerCase().includes(value.toLowerCase()) ||
-          material.id.toString().includes(value)
-      );
-      setFilteredMaterials(filtered);
-    },
-    [materials]
-  );
+  // Мемоизированная фильтрация материалов
+  const filteredMaterials = useMemo(() => {
+    const safe = Array.isArray(materials) ? materials : [];
+    
+    if (!debouncedSearchText) {
+      return safe;
+    }
+    
+    return safe.filter(
+      (material) =>
+        material && 
+        material.name && 
+        material.id &&
+        (material.name.toLowerCase().includes(debouncedSearchText.toLowerCase()) ||
+         material.unit?.toLowerCase().includes(debouncedSearchText.toLowerCase()) ||
+         material.id.toString().includes(debouncedSearchText))
+    );
+  }, [materials, debouncedSearchText]);
 
-  // Обновляем отфильтрованные материалы при изменении основного списка
-  useEffect(() => {
-    handleSearch(searchText);
-  }, [materials, handleSearch, searchText]);
+  // Функция для поиска (без debounce, только обновляет состояние)
+  const handleSearch = useCallback((value) => {
+    setSearchText(value);
+  }, []);
 
   // Загружаем материалы при монтировании компонента
   useEffect(() => {
     loadMaterials();
   }, []);
 
-  const columns = [
-    {
-      title: 'Изображение',
-      dataIndex: 'image_url',
-      key: 'image',
-      width: 60,
-      render: (imageUrl, record) => (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          {imageUrl ? (
-            <Image
-              src={imageUrl}
-              alt={record.name}
-              width={40}
-              height={40}
-              style={{ 
-                objectFit: 'cover', 
-                borderRadius: '6px',
-                border: '1px solid #f0f0f0'
-              }}
-              fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMIAAADDCAYAAADQvc6UAAABRWlDQ1BJQ0MgUHJvZmlsZQAAKJFjYGASSSwoyGFhYGDIzSspCnJ3UoiIjFJgf8LAwSDCIMogwMCcmFxc4BgQ4ANUwgCjUcG3awyMIPqyLsis7PPOq3QdDFcvjV3jOD1boQVTPQrgSkktTgbSf4A4LbmgqISBgTEFyFYuLykAsTuAbJEioKOA7DkgdjqEvQHEToKwj4DVhAQ5A9k3gGyB5IxEoBmML4BsnSQk8XQkNtReEOBxcfXxUQg1Mjc0dyHgXNJBSWpFCYh2zi+oLMpMzyhRcASGUqqCZ16yno6CkYGRAQMDKMwhqj/fAIcloxgHQqxAjIHBEugw5sUIsSQpBobtQPdLciLEVJYzMPBHMDBsayhILEqEO4DxG0txmrERhM29nYGBddr//5/DGRjYNRkY/l7////39v///y4Dmn+LgeHANwDrkl1AuO+pmgAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAwqADAAQAAAABAAAAwwAAAAD9b/HnAAAHlklEQVR4Ae3dP3Ik1RnG4W+FgYxN"
-              placeholder={
-                <div style={{ 
-                  width: 40, 
-                  height: 40, 
-                  backgroundColor: '#f5f5f5', 
-                  borderRadius: '6px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#999'
-                }}>
-                  <EyeOutlined />
-                </div>
-              }
-            />
-          ) : (
-            <div style={{ 
-              width: 40, 
-              height: 40, 
-              backgroundColor: '#f5f5f5', 
-              borderRadius: '6px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#999'
-            }}>
-              <EyeOutlined />
-            </div>
-          )}
-        </div>
-      )
-    },
-    {
-      title: 'Материал',
-      key: 'material',
-      width: 400,
-      render: (_, record) => (
-        <div>
-          <div style={{ marginBottom: 8 }}>
-            <Typography.Text strong style={{ fontSize: '14px', lineHeight: '1.4' }}>
-              {record.name}
-            </Typography.Text>
-          </div>
-          <div style={{ marginBottom: 8 }}>
-            <Tag color="blue" style={{ marginRight: 4 }}>
-              ID: {record.id}
-            </Tag>
-            <Tag color="green">
-              {record.unit}
-            </Tag>
-          </div>
-          {record.item_url && (
-            <div>
-              <Button 
-                type="link" 
-                size="small" 
-                icon={<LinkOutlined />}
-                onClick={() => window.open(record.item_url, '_blank')}
-                style={{ padding: 0, height: 'auto' }}
-              >
-                Перейти к товару
-              </Button>
-            </div>
-          )}
-        </div>
-      )
-    },
-    {
-      title: 'Цена',
-      dataIndex: 'unit_price',
-      key: 'unit_price',
-      width: 120,
-      render: (price) => (
-        <div style={{ textAlign: 'right' }}>
-          <Typography.Text strong style={{ fontSize: '16px', color: '#1890ff' }}>
-            {price ? `${parseFloat(price).toFixed(2)} ₽` : '-'}
-          </Typography.Text>
-        </div>
-      )
-    },
-    {
-      title: 'Характеристики',
-      key: 'characteristics',
-      width: 150,
-      render: (_, record) => (
-        <div>
-          {record.expenditure && (
-            <div style={{ marginBottom: 4 }}>
-              <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
-                Расход: {parseFloat(record.expenditure).toFixed(6)}
-              </Typography.Text>
-            </div>
-          )}
-          {record.weight && (
-            <div>
-              <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
-                Вес: {parseFloat(record.weight).toFixed(3)} кг
-              </Typography.Text>
-            </div>
-          )}
-        </div>
-      )
-    },
-    {
-      title: 'Действия',
-      key: 'actions',
-      width: 120,
-      render: (_, record) => (
-        <Space size="small" direction="vertical">
-          <Button 
-            type="primary" 
-            size="small" 
-            icon={<EditOutlined />} 
-            onClick={() => handleEdit(record)} 
-            title="Редактировать"
-            block
-          />
-          <Popconfirm
-            title="Удаление материала"
-            description="Вы уверены, что хотите удалить этот материал?"
-            onConfirm={() => handleDelete(record.id)}
-            okText="Да"
-            cancelText="Нет"
-          >
-            <Button 
-              danger 
-              size="small" 
-              icon={<DeleteOutlined />} 
-              title="Удалить"
-              block
-            />
-          </Popconfirm>
-        </Space>
-      )
-    }
-  ];
 
   const handleAdd = () => {
     setModalMode('create');
@@ -278,21 +311,54 @@ export default function MaterialsPage() {
         />
       </div>
 
-             <Table
-               columns={columns}
-               dataSource={filteredMaterials}
-               rowKey="id"
-               loading={loading}
-               pagination={false}
-               scroll={{ x: 1200, y: 600 }}
-               size="middle"
-               bordered={false}
-               style={{
-                 backgroundColor: '#fff',
-                 borderRadius: '8px',
-                 boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-               }}
-             />
+             {/* Виртуализированная таблица материалов */}
+             <div style={{ 
+               backgroundColor: '#fff',
+               borderRadius: '8px',
+               boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+               border: '1px solid #d9d9d9'
+             }}>
+               {/* Заголовок таблицы */}
+               <div style={{
+                 display: 'flex',
+                 alignItems: 'center',
+                 padding: '12px',
+                 backgroundColor: '#fafafa',
+                 borderBottom: '2px solid #d9d9d9',
+                 fontWeight: 'bold',
+                 fontSize: '14px'
+               }}>
+                 <div style={{ width: '60px', textAlign: 'center', marginRight: '16px' }}>Изображение</div>
+                 <div style={{ flex: 1, marginRight: '16px' }}>Материал</div>
+                 <div style={{ width: '120px', textAlign: 'center', marginRight: '16px' }}>Цена</div>
+                 <div style={{ width: '150px', textAlign: 'center', marginRight: '16px' }}>Характеристики</div>
+                 <div style={{ width: '120px', textAlign: 'center' }}>Действия</div>
+               </div>
+
+               {/* Виртуализированный список */}
+               {loading ? (
+                 <div style={{ padding: '40px', textAlign: 'center' }}>
+                   <Typography.Text>Загрузка материалов...</Typography.Text>
+                 </div>
+               ) : Array.isArray(filteredMaterials) && filteredMaterials.length > 0 ? (
+                 <List
+                   height={600}
+                   itemCount={filteredMaterials.length}
+                   itemSize={80}
+                   itemData={{
+                     materials: filteredMaterials,
+                     onEdit: handleEdit,
+                     onDelete: handleDelete
+                   }}
+                 >
+                   {VirtualizedMaterialRow}
+                 </List>
+               ) : (
+                 <div style={{ padding: '40px', textAlign: 'center' }}>
+                   <Typography.Text>Нет материалов для отображения</Typography.Text>
+                 </div>
+               )}
+             </div>
 
       <div style={{ marginTop: 16, display: 'flex', gap: '20px', color: '#666', flexWrap: 'wrap' }}>
         <Typography.Text type="secondary">
