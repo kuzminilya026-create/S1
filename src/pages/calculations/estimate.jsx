@@ -22,7 +22,7 @@ import {
   Badge,
   Image
 } from 'antd';
-import { PlusOutlined, CalculatorOutlined, DeleteOutlined, EditOutlined, FileTextOutlined, DownloadOutlined, SaveOutlined } from '@ant-design/icons';
+import { PlusOutlined, MinusOutlined, CalculatorOutlined, DeleteOutlined, EditOutlined, FileTextOutlined, DownloadOutlined, SaveOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -34,10 +34,11 @@ export default function EstimateCalculationPage() {
   const [materials, setMaterials] = useState([]);
   const [workMaterials, setWorkMaterials] = useState({}); // workId -> materials array
          const [estimateItems, setEstimateItems] = useState([]);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [form] = Form.useForm();
+         const [modalVisible, setModalVisible] = useState(false);
+         const [selectedItem, setSelectedItem] = useState(null);
+         const [loading, setLoading] = useState(false);
+         const [form] = Form.useForm();
+         const [expandedWorks, setExpandedWorks] = useState(new Set());
 
   // Загрузка данных
   useEffect(() => {
@@ -301,50 +302,43 @@ export default function EstimateCalculationPage() {
     return groups;
   }, {});
 
-  // Создаем плоский список для отображения в стиле Excel
-  // Каждая работа и каждый материал - отдельная строка
-  const flatEstimateItems = [];
-  let workCounter = 0;
-  let materialCounter = 0;
-  
-  estimateItems.forEach((item, index) => {
-    if (item.type === 'work') {
-      workCounter++;
-      materialCounter = 0; // Сбрасываем счетчик материалов для новой работы
-      
-      flatEstimateItems.push({
-        ...item,
-        level: 1,
-        number: workCounter,
-        isWork: true,
-        isMaterial: false,
-        parentWork: null,
-        materialIndex: 0
-      });
-    } else if (item.work_id) {
-      materialCounter++;
-      
-      flatEstimateItems.push({
-        ...item,
-        level: 2,
-        number: workCounter,
-        isWork: false,
-        isMaterial: true,
-        parentWork: null,
-        materialIndex: materialCounter
-      });
-    }
-  });
+         // Создаем плоский список для отображения в стиле Excel
+         // Каждая работа и каждый материал - отдельная строка
+         const flatEstimateItems = [];
+
+         estimateItems.forEach((item, index) => {
+           if (item.type === 'work') {
+             flatEstimateItems.push({
+               ...item,
+               level: 1,
+               isWork: true,
+               isMaterial: false,
+               parentWork: null,
+               expanded: expandedWorks.has(item.item_id)
+             });
+           } else if (item.work_id) {
+             // Показываем материал только если работа развернута
+             if (expandedWorks.has(item.work_id)) {
+               flatEstimateItems.push({
+                 ...item,
+                 level: 2,
+                 isWork: false,
+                 isMaterial: true,
+                 parentWork: null
+               });
+             }
+           }
+         });
 
   const excelColumns = [
     {
       title: '№',
       key: 'number',
-      width: 60,
+      width: 80,
       render: (_, record) => (
         <div style={{ textAlign: 'center' }}>
           <Text strong style={{ fontSize: '14px' }}>
-            {record.isWork ? record.number : `${record.number}.${record.materialIndex}`}
+            {record.isWork ? record.item_id : record.item_id}
           </Text>
         </div>
       )
@@ -354,7 +348,7 @@ export default function EstimateCalculationPage() {
       key: 'name',
       width: 400,
       render: (_, record) => (
-        <div style={{ 
+        <div style={{
           paddingLeft: record.isMaterial ? '20px' : '0px',
           backgroundColor: record.isWork ? '#f0f8ff' : '#f6ffed',
           padding: '8px 12px',
@@ -363,13 +357,29 @@ export default function EstimateCalculationPage() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {record.isWork ? (
-              <CalculatorOutlined style={{ color: '#1890ff', fontSize: '16px' }} />
+              <>
+                <Button
+                  type="text"
+                  size="small"
+                  icon={record.expanded ? <MinusOutlined /> : <PlusOutlined />}
+                  onClick={() => toggleWorkExpansion(record.item_id)}
+                  style={{ 
+                    padding: '2px 4px',
+                    minWidth: '20px',
+                    height: '20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                />
+                <CalculatorOutlined style={{ color: '#1890ff', fontSize: '16px' }} />
+              </>
             ) : (
               <FileTextOutlined style={{ color: '#52c41a', fontSize: '14px' }} />
             )}
-            <Text 
-              strong={record.isWork} 
-              style={{ 
+            <Text
+              strong={record.isWork}
+              style={{
                 fontSize: record.isWork ? '14px' : '13px',
                 color: record.isWork ? '#1890ff' : '#52c41a'
               }}
@@ -549,43 +559,46 @@ export default function EstimateCalculationPage() {
     {
       title: 'Действия',
       key: 'actions',
-      width: 100,
+      width: 140,
+      fixed: 'right',
       render: (_, record, index) => (
-        <Space size="small" direction="vertical">
-          {record.isWork ? (
-            <>
-              <Button 
-                type="primary" 
-                size="small" 
-                icon={<EditOutlined />} 
-                onClick={() => handleEditBlock(record)}
-                block
-              >
-                Редактировать
-              </Button>
-              <Popconfirm
-                title="Удалить блок?"
-                description="Удалить работу и все связанные материалы?"
-                onConfirm={() => handleDeleteBlock(index)}
-                okText="Да"
-                cancelText="Нет"
-              >
-                <Button 
-                  danger 
-                  size="small" 
-                  icon={<DeleteOutlined />}
+        <div style={{ paddingRight: '8px' }}>
+          <Space size="small" direction="vertical">
+            {record.isWork ? (
+              <>
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<EditOutlined />}
+                  onClick={() => handleEditBlock(record)}
                   block
                 >
-                  Удалить
+                  Редактировать
                 </Button>
-              </Popconfirm>
-            </>
-          ) : (
-            <Text type="secondary" style={{ fontSize: '11px', textAlign: 'center' }}>
-              Материал
-            </Text>
-          )}
-        </Space>
+                <Popconfirm
+                  title="Удалить блок?"
+                  description="Удалить работу и все связанные материалы?"
+                  onConfirm={() => handleDeleteBlock(index)}
+                  okText="Да"
+                  cancelText="Нет"
+                >
+                  <Button
+                    danger
+                    size="small"
+                    icon={<DeleteOutlined />}
+                    block
+                  >
+                    Удалить
+                  </Button>
+                </Popconfirm>
+              </>
+            ) : (
+              <Text type="secondary" style={{ fontSize: '11px', textAlign: 'center' }}>
+                Материал
+              </Text>
+            )}
+          </Space>
+        </div>
       )
     }
   ];
@@ -624,10 +637,21 @@ export default function EstimateCalculationPage() {
     message.success('Смета экспортирована');
   };
 
-  const handleClearEstimate = () => {
-    setEstimateItems([]);
-    message.success('Смета очищена');
-  };
+         const handleClearEstimate = () => {
+           setEstimateItems([]);
+           message.success('Смета очищена');
+         };
+
+         // Функция для переключения развернутости работы
+         const toggleWorkExpansion = (workId) => {
+           const newExpandedWorks = new Set(expandedWorks);
+           if (newExpandedWorks.has(workId)) {
+             newExpandedWorks.delete(workId);
+           } else {
+             newExpandedWorks.add(workId);
+           }
+           setExpandedWorks(newExpandedWorks);
+         };
 
 
   return (
