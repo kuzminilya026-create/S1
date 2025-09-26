@@ -42,17 +42,22 @@ function buildSslConfig(dbMeta) {
   const sslModeMatch = url.match(/sslmode=([^&]+)/i);
   let sslMode = (process.env.DATABASE_SSLMODE || (sslModeMatch ? sslModeMatch[1] : 'require')).toLowerCase();
 
-  // Heuristic: Aiven / managed ports usually enforce SSL. If disable specified but port >= 10000, override to require.
-  if ((sslMode === 'disable' || sslMode === 'off') && dbMeta.port && parseInt(dbMeta.port,10) >= 10000) {
-    console.warn('ℹ️ Переопределяем sslmode=disable -> require (порт выглядит как управляемый, вероятно требуется TLS)');
-    sslMode = 'require';
+  // Для Aiven Cloud используем prefer режим и не переопределяем
+  if (url.includes('aivencloud.com')) {
+    console.log('🔧 Aiven Cloud: используем sslmode=prefer');
+  } else {
+    // Heuristic: Aiven / managed ports usually enforce SSL. If disable specified but port >= 10000, override to require.
+    if ((sslMode === 'disable' || sslMode === 'off') && dbMeta.port && parseInt(dbMeta.port,10) >= 10000) {
+      console.warn('ℹ️ Переопределяем sslmode=disable -> require (порт выглядит как управляемый, вероятно требуется TLS)');
+      sslMode = 'require';
+    }
   }
 
   if (sslMode === 'disable' || sslMode === 'off' || process.env.DATABASE_SSL === 'false') {
     return false;
   }
 
-  const caPath = process.env.DATABASE_CA_CERT_PATH;
+  const caPath = process.env.DATABASE_CA_CERT_PATH || './ca.pem';
   let ca = undefined;
   if (caPath) {
     try { ca = fs.readFileSync(caPath).toString(); } catch (e) { console.warn('⚠️ Не удалось прочитать CA сертификат:', e.message); }
@@ -60,6 +65,12 @@ function buildSslConfig(dbMeta) {
 
   const base = { rejectUnauthorized: sslMode === 'verify-full' || sslMode === 'verify-ca', ca };
   if (sslMode === 'require' || sslMode === 'prefer') base.rejectUnauthorized = false;
+  
+  // Для Aiven Cloud принудительно отключаем проверку сертификата
+  if (url.includes('aivencloud.com')) {
+    base.rejectUnauthorized = false;
+    console.log('🔧 Aiven Cloud: отключена проверка SSL сертификата');
+  }
   return base;
 }
 
