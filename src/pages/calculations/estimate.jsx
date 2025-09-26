@@ -115,6 +115,29 @@ export default function EstimateCalculationPage() {
     message.success('Позиция удалена из сметы');
   };
 
+  // Функции для работы с блоками
+  const handleEditBlock = (block) => {
+    setSelectedItem(block.work);
+    form.setFieldsValue(block.work);
+    setModalVisible(true);
+  };
+
+  const handleDeleteBlock = (blockIndex) => {
+    const blockKeys = Object.keys(groupedItems);
+    const blockKey = blockKeys[blockIndex];
+    const block = groupedItems[blockKey];
+    
+    // Удаляем работу и все связанные материалы
+    const workId = block.work.item_id;
+    const newItems = estimateItems.filter(item => 
+      !(item.item_id === workId && item.type === 'work') && 
+      !(item.work_id === workId && item.type === 'material')
+    );
+    
+    setEstimateItems(newItems);
+    message.success('Блок удален из сметы');
+  };
+
   const handleSaveItem = async (values) => {
     const quantity = values.quantity || 1;
     const itemsToAdd = [];
@@ -184,120 +207,145 @@ export default function EstimateCalculationPage() {
     return estimateItems.reduce((sum, item) => sum + (item.total || 0), 0);
   };
 
-  const columns = [
+  // Группируем позиции по блокам (работа + материалы)
+  const groupedItems = estimateItems.reduce((groups, item, index) => {
+    if (item.type === 'work') {
+      // Создаем новый блок для работы
+      const blockId = `block_${item.item_id}_${index}`;
+      groups[blockId] = {
+        work: item,
+        materials: [],
+        blockId,
+        totalCost: item.total || 0
+      };
+    } else if (item.work_id) {
+      // Добавляем материал к последнему блоку работы
+      const lastBlock = Object.values(groups).pop();
+      if (lastBlock) {
+        lastBlock.materials.push(item);
+        lastBlock.totalCost += item.total || 0;
+      }
+    }
+    return groups;
+  }, {});
+
+  const blockColumns = [
     {
-      title: '№',
-      key: 'index',
-      width: 60,
+      title: 'Блок',
+      key: 'block',
+      width: 80,
       render: (_, record, index) => (
         <Badge 
           count={index + 1} 
-          style={{ backgroundColor: record.type === 'work' ? '#1890ff' : '#52c41a' }}
+          style={{ backgroundColor: '#1890ff' }}
         />
       )
     },
     {
-      title: 'Тип',
-      dataIndex: 'type',
-      key: 'type',
-      width: 100,
-      render: (type) => (
-        <Tag 
-          color={type === 'work' ? 'blue' : 'green'}
-          icon={type === 'work' ? <CalculatorOutlined /> : <FileTextOutlined />}
-        >
-          {type === 'work' ? 'Работа' : 'Материал'}
-        </Tag>
+      title: 'Работа',
+      key: 'work',
+      width: 300,
+      render: (_, record) => (
+        <div>
+          <Text strong style={{ fontSize: '14px', lineHeight: '1.4' }}>
+            {record.work.name}
+          </Text>
+          <div style={{ marginTop: 4 }}>
+            <Tag color="blue" icon={<CalculatorOutlined />}>
+              {record.work.unit}
+            </Tag>
+            <Text type="secondary" style={{ marginLeft: 8 }}>
+              {record.work.quantity} × {record.work.unit_price} ₽ = {record.work.total} ₽
+            </Text>
+          </div>
+        </div>
       )
     },
     {
-      title: 'Наименование',
-      dataIndex: 'name',
-      key: 'name',
-      width: 350,
-      render: (text, record) => (
+      title: 'Материалы',
+      key: 'materials',
+      width: 400,
+      render: (_, record) => (
         <div>
-          <Text strong style={{ fontSize: '14px', lineHeight: '1.4' }}>
-            {text}
-          </Text>
-          {record.work_id && (
-            <div style={{ marginTop: 4 }}>
-              <Tag size="small" color="orange">
-                Материал для работы
-              </Tag>
-            </div>
+          {record.materials.length > 0 ? (
+            record.materials.map((material, idx) => (
+              <div key={idx} style={{ 
+                marginBottom: 8, 
+                padding: '8px 12px', 
+                backgroundColor: '#f6ffed',
+                borderRadius: '4px',
+                border: '1px solid #d9f7be'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <Text strong style={{ fontSize: '13px' }}>{material.name}</Text>
+                    <br />
+                    <Text type="secondary" style={{ fontSize: '11px' }}>
+                      {material.quantity} {material.unit} × {material.unit_price} ₽
+                    </Text>
+                  </div>
+                  <Text strong style={{ color: '#52c41a', fontSize: '14px' }}>
+                    {material.total} ₽
+                  </Text>
+                </div>
+              </div>
+            ))
+          ) : (
+            <Text type="secondary" style={{ fontStyle: 'italic' }}>
+              Материалы не указаны
+            </Text>
           )}
         </div>
       )
     },
     {
-      title: 'Ед. изм.',
-      dataIndex: 'unit',
-      key: 'unit',
-      width: 80,
-      render: (unit) => <Tag color="default">{unit}</Tag>
-    },
-    {
-      title: 'Количество',
-      dataIndex: 'quantity',
-      key: 'quantity',
+      title: 'Итого блока',
+      key: 'blockTotal',
       width: 120,
-      render: (value) => (
-        <Text strong style={{ color: '#1890ff' }}>
-          {value ? parseFloat(value).toFixed(2) : '-'}
-        </Text>
-      )
-    },
-    {
-      title: 'Цена за ед.',
-      dataIndex: 'unit_price',
-      key: 'unit_price',
-      width: 120,
-      render: (value) => (
-        <Text style={{ color: '#666' }}>
-          {value ? `${parseFloat(value).toFixed(2)} ₽` : '-'}
-        </Text>
-      )
-    },
-    {
-      title: 'Итого',
-      dataIndex: 'total',
-      key: 'total',
-      width: 140,
-      render: (value) => (
-        <Text strong style={{ color: '#722ed1', fontSize: '16px' }}>
-          {value ? `${parseFloat(value).toFixed(2)} ₽` : '-'}
-        </Text>
+      render: (_, record) => (
+        <div style={{ textAlign: 'right' }}>
+          <Text strong style={{ color: '#722ed1', fontSize: '16px' }}>
+            {record.totalCost.toFixed(2)} ₽
+          </Text>
+          <div style={{ marginTop: 4, fontSize: '12px', color: '#666' }}>
+            Работа: {record.work.total} ₽
+            {record.materials.length > 0 && (
+              <div>Материалы: {(record.totalCost - record.work.total).toFixed(2)} ₽</div>
+            )}
+          </div>
+        </div>
       )
     },
     {
       title: 'Действия',
       key: 'actions',
-      width: 100,
+      width: 120,
       render: (_, record, index) => (
-        <Space size="small">
-          <Tooltip title="Редактировать">
-            <Button 
-              type="primary" 
-              size="small" 
-              icon={<EditOutlined />} 
-              onClick={() => handleEditItem(record)}
-            />
-          </Tooltip>
+        <Space size="small" direction="vertical">
+          <Button 
+            type="primary" 
+            size="small" 
+            icon={<EditOutlined />} 
+            onClick={() => handleEditBlock(record)}
+            block
+          >
+            Редактировать
+          </Button>
           <Popconfirm
-            title="Удалить позицию?"
-            description="Вы уверены, что хотите удалить эту позицию из сметы?"
-            onConfirm={() => handleDeleteItem(index)}
+            title="Удалить блок?"
+            description="Удалить работу и все связанные материалы?"
+            onConfirm={() => handleDeleteBlock(index)}
             okText="Да"
             cancelText="Нет"
           >
-            <Tooltip title="Удалить">
-              <Button 
-                danger 
-                size="small" 
-                icon={<DeleteOutlined />}
-              />
-            </Tooltip>
+            <Button 
+              danger 
+              size="small" 
+              icon={<DeleteOutlined />}
+              block
+            >
+              Удалить
+            </Button>
           </Popconfirm>
         </Space>
       )
@@ -305,8 +353,9 @@ export default function EstimateCalculationPage() {
   ];
 
   // Статистика сметы
+  const blockList = Object.values(groupedItems);
   const stats = {
-    totalItems: estimateItems.length,
+    totalBlocks: blockList.length,
     totalWorks: estimateItems.filter((item) => item.type === 'work').length,
     totalMaterials: estimateItems.filter((item) => item.type === 'material').length,
     totalAmount: getTotalEstimate(),
@@ -349,8 +398,8 @@ export default function EstimateCalculationPage() {
         <Col span={4}>
           <Card>
             <Statistic 
-              title="Всего позиций" 
-              value={stats.totalItems} 
+              title="Блоков работ" 
+              value={stats.totalBlocks} 
               valueStyle={{ color: '#1890ff' }}
               prefix={<CalculatorOutlined />}
             />
@@ -415,7 +464,7 @@ export default function EstimateCalculationPage() {
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Space wrap>
           <Button type="primary" icon={<PlusOutlined />} onClick={handleAddItem} size="large">
-            Добавить позицию
+            Добавить блок работ
           </Button>
           <Button
             icon={<CalculatorOutlined />}
@@ -465,20 +514,20 @@ export default function EstimateCalculationPage() {
         </div>
       </div>
 
-      {/* Таблица сметы */}
+      {/* Таблица блоков сметы */}
       <Table
-        columns={columns}
-        dataSource={estimateItems}
-        rowKey={(record, index) => index}
+        columns={blockColumns}
+        dataSource={blockList}
+        rowKey="blockId"
         loading={loading}
         pagination={{
-          pageSize: 20,
+          pageSize: 10,
           showSizeChanger: true,
           showQuickJumper: true,
-          showTotal: (total, range) => `${range[0]}-${range[1]} из ${total} позиций`,
-          pageSizeOptions: ['10', '20', '50', '100']
+          showTotal: (total, range) => `${range[0]}-${range[1]} из ${total} блоков`,
+          pageSizeOptions: ['5', '10', '20', '50']
         }}
-        scroll={{ x: 1200 }}
+        scroll={{ x: 1000 }}
         size="middle"
         bordered={false}
         style={{ 
@@ -488,7 +537,7 @@ export default function EstimateCalculationPage() {
         }}
         summary={() => (
           <Table.Summary.Row style={{ backgroundColor: '#f8f9fa' }}>
-            <Table.Summary.Cell index={0} colSpan={6}>
+            <Table.Summary.Cell index={0} colSpan={3}>
               <Text strong style={{ fontSize: '16px' }}>
                 Итого по смете:
               </Text>
@@ -508,7 +557,7 @@ export default function EstimateCalculationPage() {
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <CalculatorOutlined style={{ color: '#1890ff' }} />
-            {selectedItem ? 'Редактирование позиции' : 'Добавление позиции в смету'}
+            {selectedItem ? 'Редактирование блока работ' : 'Добавление блока работ в смету'}
           </div>
         }
         open={modalVisible}
@@ -518,7 +567,7 @@ export default function EstimateCalculationPage() {
             Отмена
           </Button>,
           <Button key="submit" type="primary" onClick={() => form.submit()} icon={<SaveOutlined />}>
-            {selectedItem ? 'Сохранить изменения' : 'Добавить в смету'}
+            {selectedItem ? 'Сохранить блок' : 'Добавить блок в смету'}
           </Button>
         ]}
         width={700}
@@ -527,18 +576,12 @@ export default function EstimateCalculationPage() {
         <Form form={form} layout="vertical" onFinish={handleSaveItem}>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="type" label="Тип позиции" rules={[{ required: true, message: 'Выберите тип позиции' }]}>
-                <Select placeholder="Выберите тип" size="large">
+              <Form.Item name="type" label="Тип позиции" initialValue="work" rules={[{ required: true, message: 'Выберите тип позиции' }]}>
+                <Select placeholder="Выберите тип" size="large" disabled>
                   <Option value="work">
                     <Space>
                       <CalculatorOutlined />
                       Работа
-                    </Space>
-                  </Option>
-                  <Option value="material">
-                    <Space>
-                      <FileTextOutlined />
-                      Материал
                     </Space>
                   </Option>
                 </Select>
@@ -557,68 +600,48 @@ export default function EstimateCalculationPage() {
             </Col>
           </Row>
 
-          <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => prevValues.type !== currentValues.type}>
-            {({ getFieldValue }) => {
-              const type = getFieldValue('type');
-              return (
-                <Form.Item
-                  name="item_id"
-                  label={
-                    <Space>
-                      {type === 'work' ? <CalculatorOutlined /> : <FileTextOutlined />}
-                      {type === 'work' ? 'Выберите работу' : 'Выберите материал'}
-                    </Space>
-                  }
-                  rules={[{ required: true, message: 'Выберите позицию' }]}
-                >
-                  <Select
-                    placeholder={type === 'work' ? 'Выберите работу' : 'Выберите материал'}
-                    size="large"
-                    showSearch
-                    filterOption={(input, option) =>
-                      option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
-                    }
-                    onChange={async (value) => {
-                      const item = type === 'work' ? works.find((w) => w.id === value) : materials.find((m) => m.id === value);
-                      if (item) {
-                        form.setFieldsValue({
-                          name: item.name,
-                          unit: item.unit,
-                          unit_price: item.unit_price || 0
-                        });
+          <Form.Item
+            name="item_id"
+            label={
+              <Space>
+                <CalculatorOutlined />
+                Выберите работу
+              </Space>
+            }
+            rules={[{ required: true, message: 'Выберите работу' }]}
+          >
+            <Select
+              placeholder="Выберите работу"
+              size="large"
+              showSearch
+              filterOption={(input, option) =>
+                option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
+              }
+              onChange={async (value) => {
+                const item = works.find((w) => w.id === value);
+                if (item) {
+                  form.setFieldsValue({
+                    name: item.name,
+                    unit: item.unit,
+                    unit_price: item.unit_price || 0
+                  });
 
-                        // Если выбрана работа, загрузим связанные материалы для отображения
-                        if (type === 'work') {
-                          await loadWorkMaterials(value);
-                        }
-                      }
-                    }}
-                  >
-                    {type === 'work'
-                      ? works.map((work) => (
-                          <Option key={work.id} value={work.id}>
-                            <div>
-                              <div style={{ fontWeight: 'bold' }}>{work.name}</div>
-                              <div style={{ fontSize: '12px', color: '#666' }}>
-                                {work.unit_price ? `${work.unit_price} ₽/${work.unit}` : 'цена не указана'}
-                              </div>
-                            </div>
-                          </Option>
-                        ))
-                      : materials.map((material) => (
-                          <Option key={material.id} value={material.id}>
-                            <div>
-                              <div style={{ fontWeight: 'bold' }}>{material.name}</div>
-                              <div style={{ fontSize: '12px', color: '#666' }}>
-                                {material.unit_price ? `${material.unit_price} ₽/${material.unit}` : 'цена не указана'}
-                              </div>
-                            </div>
-                          </Option>
-                        ))}
-                  </Select>
-                </Form.Item>
-              );
-            }}
+                  // Загрузим связанные материалы для отображения
+                  await loadWorkMaterials(value);
+                }
+              }}
+            >
+              {works.map((work) => (
+                <Option key={work.id} value={work.id}>
+                  <div>
+                    <div style={{ fontWeight: 'bold' }}>{work.name}</div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>
+                      {work.unit_price ? `${work.unit_price} ₽/${work.unit}` : 'цена не указана'}
+                    </div>
+                  </div>
+                </Option>
+              ))}
+            </Select>
           </Form.Item>
 
           {/* Отображение связанных материалов для работы */}
@@ -629,11 +652,10 @@ export default function EstimateCalculationPage() {
             }
           >
             {({ getFieldValue }) => {
-              const type = getFieldValue('type');
               const workId = getFieldValue('item_id');
               const quantity = getFieldValue('quantity') || 1;
 
-              if (type === 'work' && workId && workMaterials[workId]?.length > 0) {
+              if (workId && workMaterials[workId]?.length > 0) {
                 const materials = workMaterials[workId];
                 const totalMaterialsCost = materials.reduce((sum, mat) => {
                   const materialQuantity = (mat.total_consumption || 0) * quantity;
