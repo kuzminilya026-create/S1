@@ -355,97 +355,189 @@ export default function EstimateCalculationPage() {
     return groups;
   }, {});
 
-  const blockColumns = [
+  // Создаем плоский список для отображения в стиле Excel
+  const flatEstimateItems = estimateItems.reduce((acc, item, index) => {
+    if (item.type === 'work') {
+      // Добавляем работу
+      acc.push({
+        ...item,
+        level: 1,
+        number: acc.filter(i => i.level === 1).length + 1,
+        isWork: true,
+        materials: []
+      });
+    } else if (item.work_id) {
+      // Добавляем материал к последней работе
+      const lastWorkIndex = acc.findLastIndex(i => i.isWork);
+      if (lastWorkIndex !== -1) {
+        acc[lastWorkIndex].materials.push(item);
+      }
+    }
+    return acc;
+  }, []);
+
+  const excelColumns = [
     {
-      title: 'Блок',
-      key: 'block',
-      width: 80,
-      render: (_, record, index) => (
-        <Badge 
-          count={index + 1} 
-          style={{ backgroundColor: '#1890ff' }}
-        />
-      )
-    },
-    {
-      title: 'Работа',
-      key: 'work',
-      width: 300,
+      title: '№',
+      key: 'number',
+      width: 60,
       render: (_, record) => (
-        <div>
-          <Text strong style={{ fontSize: '14px', lineHeight: '1.4' }}>
-            {record.work.name}
+        <div style={{ textAlign: 'center' }}>
+          <Text strong style={{ fontSize: '14px' }}>
+            {record.number}
           </Text>
-          <div style={{ marginTop: 4 }}>
-            <Tag color="blue" icon={<CalculatorOutlined />}>
-              {record.work.unit}
-            </Tag>
-            <Text type="secondary" style={{ marginLeft: 8 }}>
-              {record.work.quantity} × {record.work.unit_price} ₽ = {record.work.total} ₽
-            </Text>
-          </div>
         </div>
       )
     },
     {
-      title: 'Материалы',
-      key: 'materials',
-      width: 400,
+      title: 'Наименование работ',
+      key: 'name',
+      width: 350,
       render: (_, record) => (
         <div>
-          {record.materials.length > 0 ? (
-            record.materials.map((material, idx) => (
-              <div key={idx} style={{ 
-                marginBottom: 8, 
-                padding: '8px 12px', 
-                backgroundColor: '#f6ffed',
-                borderRadius: '4px',
-                border: '1px solid #d9f7be'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <Text strong style={{ fontSize: '13px' }}>{material.name}</Text>
-                    <br />
-                    <Text type="secondary" style={{ fontSize: '11px' }}>
-                      {material.quantity} {material.unit} × {material.unit_price} ₽
-                    </Text>
-                  </div>
-                  <Text strong style={{ color: '#52c41a', fontSize: '14px' }}>
-                    {material.total} ₽
-                  </Text>
+          <Text strong style={{ fontSize: '14px', lineHeight: '1.4' }}>
+            {record.name}
+          </Text>
+          {record.materials.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              {record.materials.map((material, idx) => (
+                <div key={idx} style={{ 
+                  marginBottom: 4, 
+                  padding: '4px 8px', 
+                  backgroundColor: '#f6ffed',
+                  borderRadius: '4px',
+                  border: '1px solid #d9f7be',
+                  fontSize: '12px'
+                }}>
+                  <Text style={{ fontSize: '12px' }}>{material.name}</Text>
                 </div>
-              </div>
-            ))
-          ) : (
-            <Text type="secondary" style={{ fontStyle: 'italic' }}>
-              Материалы не указаны
-            </Text>
+              ))}
+            </div>
           )}
         </div>
       )
     },
     {
-      title: 'Итого блока',
-      key: 'blockTotal',
+      title: 'Изображение',
+      key: 'image',
+      width: 80,
+      render: (_, record) => (
+        <div style={{ textAlign: 'center' }}>
+          {record.materials.length > 0 ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px', justifyContent: 'center' }}>
+              {record.materials.slice(0, 3).map((material, idx) => (
+                <div key={idx} style={{
+                  width: '20px',
+                  height: '20px',
+                  backgroundColor: '#52c41a',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '10px',
+                  color: 'white'
+                }}>
+                  {idx + 1}
+                </div>
+              ))}
+              {record.materials.length > 3 && (
+                <div style={{
+                  width: '20px',
+                  height: '20px',
+                  backgroundColor: '#1890ff',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '10px',
+                  color: 'white'
+                }}>
+                  +
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{
+              width: '20px',
+              height: '20px',
+              backgroundColor: '#f0f0f0',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '10px',
+              color: '#999'
+            }}>
+              -
+            </div>
+          )}
+        </div>
+      )
+    },
+    {
+      title: 'Ед.изм.',
+      key: 'unit',
+      width: 80,
+      render: (_, record) => (
+        <div style={{ textAlign: 'center' }}>
+          <Tag color="default" style={{ fontSize: '12px' }}>
+            {record.unit}
+          </Tag>
+        </div>
+      )
+    },
+    {
+      title: 'Кол-во',
+      key: 'quantity',
+      width: 80,
+      render: (_, record) => (
+        <div style={{ textAlign: 'center' }}>
+          <Text strong style={{ color: '#1890ff' }}>
+            {record.quantity}
+          </Text>
+        </div>
+      )
+    },
+    {
+      title: 'На единицу',
+      key: 'unit_price',
+      width: 100,
+      render: (_, record) => (
+        <div style={{ textAlign: 'right' }}>
+          <Text style={{ color: '#666' }}>
+            {record.unit_price.toFixed(2)} ₽
+          </Text>
+        </div>
+      )
+    },
+    {
+      title: 'Материалы',
+      key: 'materials_cost',
       width: 120,
       render: (_, record) => (
         <div style={{ textAlign: 'right' }}>
-          <Text strong style={{ color: '#722ed1', fontSize: '16px' }}>
-            {record.totalCost.toFixed(2)} ₽
+          <Text strong style={{ color: '#52c41a', fontSize: '14px' }}>
+            {record.materials.reduce((sum, mat) => sum + (mat.total || 0), 0).toFixed(2)} ₽
           </Text>
-          <div style={{ marginTop: 4, fontSize: '12px', color: '#666' }}>
-            Работа: {record.work.total} ₽
-            {record.materials.length > 0 && (
-              <div>Материалы: {(record.totalCost - record.work.total).toFixed(2)} ₽</div>
-            )}
-          </div>
+        </div>
+      )
+    },
+    {
+      title: 'Оплата труда',
+      key: 'work_cost',
+      width: 120,
+      render: (_, record) => (
+        <div style={{ textAlign: 'right' }}>
+          <Text strong style={{ color: '#1890ff', fontSize: '14px' }}>
+            {record.total.toFixed(2)} ₽
+          </Text>
         </div>
       )
     },
     {
       title: 'Действия',
       key: 'actions',
-      width: 120,
+      width: 100,
       render: (_, record, index) => (
         <Space size="small" direction="vertical">
           <Button 
@@ -780,40 +872,45 @@ export default function EstimateCalculationPage() {
         </div>
       </div>
 
-      {/* Таблица блоков сметы */}
+      {/* Таблица сметы в стиле Excel */}
       <Table
-        columns={blockColumns}
-        dataSource={blockList}
-        rowKey="blockId"
+        columns={excelColumns}
+        dataSource={flatEstimateItems}
+        rowKey="item_id"
         loading={loading}
         pagination={{
-          pageSize: 10,
+          pageSize: 20,
           showSizeChanger: true,
           showQuickJumper: true,
-          showTotal: (total, range) => `${range[0]}-${range[1]} из ${total} блоков`,
-          pageSizeOptions: ['5', '10', '20', '50']
+          showTotal: (total, range) => `${range[0]}-${range[1]} из ${total} позиций`,
+          pageSizeOptions: ['10', '20', '50', '100']
         }}
-        scroll={{ x: 1000 }}
+        scroll={{ x: 1200 }}
         size="middle"
-        bordered={false}
+        bordered={true}
         style={{ 
           backgroundColor: '#fff',
           borderRadius: '8px',
           boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
         }}
         summary={() => (
-          <Table.Summary.Row style={{ backgroundColor: '#f8f9fa' }}>
-            <Table.Summary.Cell index={0} colSpan={3}>
+          <Table.Summary.Row style={{ backgroundColor: '#f8f9fa', fontWeight: 'bold' }}>
+            <Table.Summary.Cell index={0} colSpan={5}>
               <Text strong style={{ fontSize: '16px' }}>
                 Итого по смете:
               </Text>
             </Table.Summary.Cell>
             <Table.Summary.Cell index={1}>
-              <Text strong style={{ color: '#722ed1', fontSize: '18px' }}>
-                {stats.totalAmount.toFixed(2)} ₽
+              <Text strong style={{ color: '#52c41a', fontSize: '16px' }}>
+                {stats.materialsAmount.toFixed(2)} ₽
               </Text>
             </Table.Summary.Cell>
-            <Table.Summary.Cell index={2} />
+            <Table.Summary.Cell index={2}>
+              <Text strong style={{ color: '#1890ff', fontSize: '16px' }}>
+                {stats.worksAmount.toFixed(2)} ₽
+              </Text>
+            </Table.Summary.Cell>
+            <Table.Summary.Cell index={3} />
           </Table.Summary.Row>
         )}
       />
