@@ -32,7 +32,133 @@ export default function EstimateCalculationPage() {
   const [works, setWorks] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [workMaterials, setWorkMaterials] = useState({}); // workId -> materials array
-  const [estimateItems, setEstimateItems] = useState([]);
+  const [estimateItems, setEstimateItems] = useState([
+    // Статический пример блока 1: Штукатурка стен
+    {
+      type: 'work',
+      item_id: 'w.001',
+      name: 'Штукатурка стен по маякам',
+      unit: 'м²',
+      quantity: 50,
+      unit_price: 450,
+      total: 22500,
+      work_id: null
+    },
+    {
+      type: 'material',
+      item_id: 'm.001',
+      name: 'Штукатурка гипсовая Knauf Ротбанд 30 кг',
+      unit: 'упак.',
+      quantity: 8.33,
+      unit_price: 565,
+      total: 4706.45,
+      work_id: 'w.001'
+    },
+    {
+      type: 'material',
+      item_id: 'm.002',
+      name: 'Маяки штукатурные 3м',
+      unit: 'шт.',
+      quantity: 17,
+      unit_price: 45,
+      total: 765,
+      work_id: 'w.001'
+    },
+    {
+      type: 'material',
+      item_id: 'm.003',
+      name: 'Сетка штукатурная 1х1м',
+      unit: 'м²',
+      quantity: 5,
+      unit_price: 25,
+      total: 125,
+      work_id: 'w.001'
+    },
+    
+    // Статический пример блока 2: Покраска стен
+    {
+      type: 'work',
+      item_id: 'w.002',
+      name: 'Покраска стен водоэмульсионной краской',
+      unit: 'м²',
+      quantity: 45,
+      unit_price: 180,
+      total: 8100,
+      work_id: null
+    },
+    {
+      type: 'material',
+      item_id: 'm.004',
+      name: 'Краска водоэмульсионная белая 10л',
+      unit: 'банка',
+      quantity: 2,
+      unit_price: 1200,
+      total: 2400,
+      work_id: 'w.002'
+    },
+    {
+      type: 'material',
+      item_id: 'm.005',
+      name: 'Валик малярный 18см',
+      unit: 'шт.',
+      quantity: 1,
+      unit_price: 150,
+      total: 150,
+      work_id: 'w.002'
+    },
+    {
+      type: 'material',
+      item_id: 'm.006',
+      name: 'Кисть малярная 5см',
+      unit: 'шт.',
+      quantity: 2,
+      unit_price: 80,
+      total: 160,
+      work_id: 'w.002'
+    },
+    
+    // Статический пример блока 3: Укладка плитки
+    {
+      type: 'work',
+      item_id: 'w.003',
+      name: 'Укладка керамической плитки на пол',
+      unit: 'м²',
+      quantity: 12,
+      unit_price: 800,
+      total: 9600,
+      work_id: null
+    },
+    {
+      type: 'material',
+      item_id: 'm.007',
+      name: 'Плитка керамическая 30х30см',
+      unit: 'м²',
+      quantity: 13.2,
+      unit_price: 450,
+      total: 5940,
+      work_id: 'w.003'
+    },
+    {
+      type: 'material',
+      item_id: 'm.008',
+      name: 'Клей для плитки 25кг',
+      unit: 'мешок',
+      quantity: 2,
+      unit_price: 350,
+      total: 700,
+      work_id: 'w.003'
+    },
+    {
+      type: 'material',
+      item_id: 'm.009',
+      name: 'Затирка для швов 2кг',
+      unit: 'упак.',
+      quantity: 1,
+      unit_price: 180,
+      total: 180,
+      work_id: 'w.003'
+    }
+  ]);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -391,6 +517,138 @@ export default function EstimateCalculationPage() {
     message.success('Смета очищена');
   };
 
+  const handleLoadDemoData = () => {
+    // Перезагружаем статические данные
+    setEstimateItems([
+      // Статический пример блока 1: Штукатурка стен
+      {
+        type: 'work',
+        item_id: 'w.001',
+        name: 'Штукатурка стен по маякам',
+        unit: 'м²',
+        quantity: 50,
+        unit_price: 450,
+        total: 22500,
+        work_id: null
+      },
+      {
+        type: 'material',
+        item_id: 'm.001',
+        name: 'Штукатурка гипсовая Knauf Ротбанд 30 кг',
+        unit: 'упак.',
+        quantity: 8.33,
+        unit_price: 565,
+        total: 4706.45,
+        work_id: 'w.001'
+      },
+      {
+        type: 'material',
+        item_id: 'm.002',
+        name: 'Маяки штукатурные 3м',
+        unit: 'шт.',
+        quantity: 17,
+        unit_price: 45,
+        total: 765,
+        work_id: 'w.001'
+      },
+      {
+        type: 'material',
+        item_id: 'm.003',
+        name: 'Сетка штукатурная 1х1м',
+        unit: 'м²',
+        quantity: 5,
+        unit_price: 25,
+        total: 125,
+        work_id: 'w.001'
+      },
+      
+      // Статический пример блока 2: Покраска стен
+      {
+        type: 'work',
+        item_id: 'w.002',
+        name: 'Покраска стен водоэмульсионной краской',
+        unit: 'м²',
+        quantity: 45,
+        unit_price: 180,
+        total: 8100,
+        work_id: null
+      },
+      {
+        type: 'material',
+        item_id: 'm.004',
+        name: 'Краска водоэмульсионная белая 10л',
+        unit: 'банка',
+        quantity: 2,
+        unit_price: 1200,
+        total: 2400,
+        work_id: 'w.002'
+      },
+      {
+        type: 'material',
+        item_id: 'm.005',
+        name: 'Валик малярный 18см',
+        unit: 'шт.',
+        quantity: 1,
+        unit_price: 150,
+        total: 150,
+        work_id: 'w.002'
+      },
+      {
+        type: 'material',
+        item_id: 'm.006',
+        name: 'Кисть малярная 5см',
+        unit: 'шт.',
+        quantity: 2,
+        unit_price: 80,
+        total: 160,
+        work_id: 'w.002'
+      },
+      
+      // Статический пример блока 3: Укладка плитки
+      {
+        type: 'work',
+        item_id: 'w.003',
+        name: 'Укладка керамической плитки на пол',
+        unit: 'м²',
+        quantity: 12,
+        unit_price: 800,
+        total: 9600,
+        work_id: null
+      },
+      {
+        type: 'material',
+        item_id: 'm.007',
+        name: 'Плитка керамическая 30х30см',
+        unit: 'м²',
+        quantity: 13.2,
+        unit_price: 450,
+        total: 5940,
+        work_id: 'w.003'
+      },
+      {
+        type: 'material',
+        item_id: 'm.008',
+        name: 'Клей для плитки 25кг',
+        unit: 'мешок',
+        quantity: 2,
+        unit_price: 350,
+        total: 700,
+        work_id: 'w.003'
+      },
+      {
+        type: 'material',
+        item_id: 'm.009',
+        name: 'Затирка для швов 2кг',
+        unit: 'упак.',
+        quantity: 1,
+        unit_price: 180,
+        total: 180,
+        work_id: 'w.003'
+      }
+    ]);
+    message.success('Демонстрационные данные загружены');
+  };
+
   return (
     <MainCard title="Расчет сметы">
       {/* Статистика */}
@@ -475,6 +733,14 @@ export default function EstimateCalculationPage() {
             size="large"
           >
             Обновить справочники
+          </Button>
+          <Button
+            icon={<FileTextOutlined />}
+            onClick={handleLoadDemoData}
+            size="large"
+            type="dashed"
+          >
+            Загрузить примеры
           </Button>
           <Button
             icon={<DownloadOutlined />}
@@ -584,8 +850,8 @@ export default function EstimateCalculationPage() {
                       Работа
                     </Space>
                   </Option>
-                </Select>
-              </Form.Item>
+            </Select>
+          </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item name="quantity" label="Количество" rules={[{ required: true, message: 'Введите количество' }]}>
@@ -600,8 +866,8 @@ export default function EstimateCalculationPage() {
             </Col>
           </Row>
 
-          <Form.Item
-            name="item_id"
+                <Form.Item
+                  name="item_id"
             label={
               <Space>
                 <CalculatorOutlined />
@@ -609,39 +875,39 @@ export default function EstimateCalculationPage() {
               </Space>
             }
             rules={[{ required: true, message: 'Выберите работу' }]}
-          >
-            <Select
+                >
+                  <Select
               placeholder="Выберите работу"
               size="large"
               showSearch
               filterOption={(input, option) =>
                 option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
               }
-              onChange={async (value) => {
+                    onChange={async (value) => {
                 const item = works.find((w) => w.id === value);
-                if (item) {
-                  form.setFieldsValue({
-                    name: item.name,
-                    unit: item.unit,
-                    unit_price: item.unit_price || 0
-                  });
+                      if (item) {
+                        form.setFieldsValue({
+                          name: item.name,
+                          unit: item.unit,
+                          unit_price: item.unit_price || 0
+                        });
 
                   // Загрузим связанные материалы для отображения
-                  await loadWorkMaterials(value);
-                }
-              }}
-            >
+                          await loadWorkMaterials(value);
+                      }
+                    }}
+                  >
               {works.map((work) => (
-                <Option key={work.id} value={work.id}>
+                          <Option key={work.id} value={work.id}>
                   <div>
                     <div style={{ fontWeight: 'bold' }}>{work.name}</div>
                     <div style={{ fontSize: '12px', color: '#666' }}>
                       {work.unit_price ? `${work.unit_price} ₽/${work.unit}` : 'цена не указана'}
                     </div>
                   </div>
-                </Option>
-              ))}
-            </Select>
+                          </Option>
+                        ))}
+                  </Select>
           </Form.Item>
 
           {/* Отображение связанных материалов для работы */}
@@ -668,9 +934,9 @@ export default function EstimateCalculationPage() {
                     title={
                       <Space>
                         <FileTextOutlined style={{ color: '#52c41a' }} />
-                        <Text strong style={{ color: '#52c41a' }}>
+                    <Text strong style={{ color: '#52c41a' }}>
                           Связанные материалы (будут добавлены автоматически)
-                        </Text>
+                    </Text>
                       </Space>
                     }
                     size="small"
@@ -709,7 +975,7 @@ export default function EstimateCalculationPage() {
                       <Text strong style={{ color: '#52c41a', fontSize: '16px' }}>
                         Итого материалов: {totalMaterialsCost.toFixed(2)} ₽
                       </Text>
-                    </div>
+                  </div>
                   </Card>
                 );
               }
